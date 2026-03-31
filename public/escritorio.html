@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Monitor de revisión</title>
+<style>
+body{font-family:Arial;padding:40px;background:#f2f2f2;}
+.container{display:flex;justify-content:space-between;gap:30px;}
+.panel{background:white;padding:20px;border-radius:10px;flex:1;}
+button{padding:10px 20px;background:#1976d2;color:white;border:none;border-radius:5px;cursor:pointer;}
+pre{white-space:pre-wrap;background:#fafafa;padding:10px;border-radius:8px;}
+</style>
+</head>
+<body>
+<h1 id="titulo">Monitor</h1>
+<div class="container">
+<div class="panel">
+<p>Última revisión</p>
+<pre id="revision">Sin revisión</pre>
+<button id="btnRevisar">Revisar siguiente producto</button>
+</div>
+<div class="panel">
+<p>Productos pendientes en banda</p>
+<h2 id="pendientes">0</h2>
+</div>
+</div>
+<script src="/socket.io/socket.io.js"></script>
+<script src="js/escritorio.js"></script>
+</body>
+</html>
