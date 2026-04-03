@@ -1,0 +1,131 @@
+openapi: 3.0.3
+info:
+  title: Cliente Auth API
+  version: 1.0.0
+  description: Register and login contracts for client authentication.
+servers:
+  - url: http://localhost:1200
+paths:
+  /api/v1/auth/register:
+    post:
+      tags: [Auth]
+      summary: Register a new client account
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '201':
+          description: Client account created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthSuccessResponse'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthFailureResponse'
+        '409':
+          description: Duplicate client identifier
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthFailureResponse'
+
+  /api/v1/auth/login:
+    post:
+      tags: [Auth]
+      summary: Authenticate a client and issue access JWT
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Login success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthSuccessResponse'
+        '401':
+          description: Generic authentication failure
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthFailureResponse'
+        '429':
+          description: Login rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthFailureResponse'
+
+components:
+  schemas:
+    RegisterRequest:
+      type: object
+      required: [nombre, contrasena]
+      properties:
+        nombre:
+          type: string
+          minLength: 1
+        contrasena:
+          type: string
+          minLength: 8
+          description: Must include at least one numeric digit.
+
+    LoginRequest:
+      type: object
+      required: [nombre, contrasena]
+      properties:
+        nombre:
+          type: string
+        contrasena:
+          type: string
+
+    AuthData:
+      type: object
+      required: [token, tokenType, expiresIn]
+      properties:
+        token:
+          type: string
+        tokenType:
+          type: string
+          example: Bearer
+        expiresIn:
+          type: string
+          example: 1h
+
+    AuthSuccessResponse:
+      type: object
+      required: [ok, data]
+      properties:
+        ok:
+          type: boolean
+          example: true
+        data:
+          $ref: '#/components/schemas/AuthData'
+
+    AuthFailureResponse:
+      type: object
+      required: [ok, error]
+      properties:
+        ok:
+          type: boolean
+          example: false
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code:
+              type: string
+              example: AUTH_FAILED
+            message:
+              type: string
+              example: Credenciales invalidas

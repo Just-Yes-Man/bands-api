@@ -1,0 +1,290 @@
+openapi: 3.0.3
+info:
+  title: Conveyor Backend API
+  version: 1.0.0
+  description: |
+    Versioned REST contract for conveyor backend refactor.
+    Uses /api/v1 prefix and JWT-protected operations by default.
+servers:
+  - url: http://localhost:1200
+paths:
+  /api/v1/health:
+    get:
+      summary: Service health
+      tags: [System]
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+
+  /api/v1/product-models:
+    get:
+      summary: List product models
+      tags: [Product Models]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Product models list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductModelListResponse'
+    post:
+      summary: Create product model
+      tags: [Product Models]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateProductModelRequest'
+      responses:
+        '201':
+          description: Product model created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductModelResponse'
+        '400':
+          description: Validation error
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden
+
+  /api/v1/checkpoints:
+    post:
+      summary: Register checkpoint event
+      tags: [Checkpoints]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateCheckpointRequest'
+      responses:
+        '202':
+          description: Checkpoint accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CheckpointAcceptedResponse'
+        '400':
+          description: Validation error
+        '401':
+          description: Unauthorized
+
+  /api/v1/checkpoints/{id}:
+    get:
+      summary: Get checkpoint event by id
+      tags: [Checkpoints]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Checkpoint details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CheckpointResponse'
+        '401':
+          description: Unauthorized
+        '404':
+          description: Not found
+
+  /api/v1/monitors:
+    get:
+      summary: List active process monitors
+      tags: [Monitors]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Active monitors list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Monitor'
+
+  /api/v1/monitors/{id}/deactivate:
+    patch:
+      summary: Deactivate a process monitor
+      tags: [Monitors]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Monitor deactivated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  data:
+                    $ref: '#/components/schemas/Monitor'
+        '404':
+          description: Not found
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: ok
+        timestamp:
+          type: string
+          format: date-time
+      required: [status, timestamp]
+
+    CreateProductModelRequest:
+      type: object
+      properties:
+        type:
+          type: string
+        qrCode:
+          type: string
+        expectedWeight:
+          type: number
+        expectedColor:
+          type: string
+        expectedHeight:
+          type: number
+      required: [type, qrCode, expectedWeight, expectedColor, expectedHeight]
+
+    ProductModel:
+      type: object
+      properties:
+        id:
+          type: integer
+        type:
+          type: string
+        qrCode:
+          type: string
+        expectedWeight:
+          type: number
+        expectedColor:
+          type: string
+        expectedHeight:
+          type: number
+        active:
+          type: boolean
+      required: [id, type, qrCode, expectedWeight, expectedColor, expectedHeight, active]
+
+    ProductModelResponse:
+      type: object
+      properties:
+        ok:
+          type: boolean
+          example: true
+        data:
+          $ref: '#/components/schemas/ProductModel'
+      required: [ok, data]
+
+    ProductModelListResponse:
+      type: object
+      properties:
+        ok:
+          type: boolean
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProductModel'
+      required: [ok, data]
+
+    CreateCheckpointRequest:
+      type: object
+      properties:
+        measuredQr:
+          type: string
+        measuredWeight:
+          type: number
+        measuredColor:
+          type: string
+        measuredHeight:
+          type: number
+        channel:
+          type: string
+      required: [measuredQr, measuredWeight, measuredColor, measuredHeight]
+
+    Checkpoint:
+      type: object
+      properties:
+        id:
+          type: integer
+        status:
+          type: string
+          enum: [received, queued, reviewed, published]
+        approved:
+          type: boolean
+        monitorId:
+          type: integer
+          nullable: true
+      required: [id, status, approved]
+
+    CheckpointAcceptedResponse:
+      type: object
+      properties:
+        ok:
+          type: boolean
+        data:
+          $ref: '#/components/schemas/Checkpoint'
+      required: [ok, data]
+
+    CheckpointResponse:
+      type: object
+      properties:
+        ok:
+          type: boolean
+        data:
+          $ref: '#/components/schemas/Checkpoint'
+      required: [ok, data]
+
+    Monitor:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        channel:
+          type: string
+        active:
+          type: boolean
+      required: [id, name, channel, active]

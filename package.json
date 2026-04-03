@@ -4,18 +4,32 @@
   "description": "",
   "main": "app.js",
   "scripts": {
-    "dev": "nodemon app.js"
+    "start": "node app.js",
+    "dev": "nodemon app.js",
+    "test": "jest --runInBand",
+    "test:watch": "jest --watch",
+    "test:auth": "jest --runInBand tests/unit/auth tests/contract/http tests/integration/http tests/integration/socket",
+    "auth:smoke": "node -e \"console.log('Use quickstart auth steps to validate register/login flow')\"",
+    "migrate": "node src/infrastructure/db/migrate.js"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "dotenv": "^16.6.1",
     "express": "^5.2.1",
-    "socket.io": "^4.8.3",
+    "jsonwebtoken": "^9.0.3",
     "pg": "^8.16.3",
-    "dotenv": "^16.6.1"
+    "socket.io": "^4.8.3",
+    "swagger-jsdoc": "^6.2.8",
+    "swagger-ui-express": "^5.0.1",
+    "zod": "^4.3.6"
   },
   "devDependencies": {
-    "nodemon": "^3.1.14"
+    "jest": "^30.3.0",
+    "nodemon": "^3.1.14",
+    "socket.io-client": "^4.8.3",
+    "supertest": "^7.2.2"
   }
 }
