@@ -6,6 +6,7 @@ const ui = {
   registerContrasena: document.querySelector('#registerContrasena'),
   loginNombre: document.querySelector('#loginNombre'),
   loginContrasena: document.querySelector('#loginContrasena'),
+  operatorToken: document.querySelector('#operatorToken'),
   createClienteId: document.querySelector('#createClienteId'),
   createLineas: document.querySelector('#createLineas'),
   listClienteId: document.querySelector('#listClienteId'),
@@ -20,6 +21,8 @@ const getToken = () => localStorage.getItem(TOKEN_KEY) || '';
 const setToken = (token) => localStorage.setItem(TOKEN_KEY, token);
 const clearToken = () => localStorage.removeItem(TOKEN_KEY);
 
+let operationalToken = '';
+
 const setEstado = (label, payload) => {
   estado.textContent = `${label}\n${typeof payload === 'string' ? payload : JSON.stringify(payload, null, 2)}`;
 };
@@ -32,6 +35,23 @@ const parseJsonOrThrow = (raw) => {
   }
 };
 
+const decodeJwtPayload = (token) => {
+  if (!token || token.split('.').length < 2) {
+    return null;
+  }
+
+  try {
+    const payloadBase64 = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+    const normalized = payloadBase64 + '='.repeat((4 - (payloadBase64.length % 4)) % 4);
+    const json = atob(normalized);
+    return JSON.parse(json);
+  } catch {
+    return null;
+  }
+};
+
+const activeToken = () => operationalToken || getToken();
+
 const api = async (path, options = {}, requiresAuth = false) => {
   const headers = {
     'Content-Type': 'application/json',
@@ -39,9 +59,9 @@ const api = async (path, options = {}, requiresAuth = false) => {
   };
 
   if (requiresAuth) {
-    const token = getToken();
+    const token = activeToken();
     if (!token) {
-      throw new Error('No hay token. Inicia sesión primero.');
+      throw new Error('No hay token. Inicia sesión o carga token operativo.');
     }
     headers.Authorization = `Bearer ${token}`;
   }
@@ -60,6 +80,23 @@ const api = async (path, options = {}, requiresAuth = false) => {
   }
 
   return payload;
+};
+
+const ensureOperationalRole = () => {
+  const token = activeToken();
+  if (!token) {
+    throw new Error('Necesitas token para operar progreso/cancelación.');
+  }
+
+  const claims = decodeJwtPayload(token);
+  const role = claims && claims.role;
+  const allowed = ['admin', 'supervisor', 'operator'];
+
+  if (!allowed.includes(role)) {
+    throw new Error('Para actualizar progreso o cancelar línea usa token con rol admin/supervisor/operator.');
+  }
+
+  return role;
 };
 
 const autoFillClientIdFromMe = async () => {
@@ -106,19 +143,41 @@ document.querySelector('#btnLogin').addEventListener('click', async () => {
     if (!token) {
       throw new Error('El login no devolvio token');
     }
+
+    operationalToken = '';
+    ui.operatorToken.value = '';
     setToken(token);
-    setEstado('Login exitoso. Token guardado en localStorage.', data);
+    setEstado('Login exitoso. Token client guardado en localStorage.', data);
     await autoFillClientIdFromMe();
   } catch (error) {
     setEstado('Error en login:', error.message);
   }
 });
 
+document.querySelector('#btnUseOperatorToken').addEventListener('click', () => {
+  const token = ui.operatorToken.value.trim().replace(/^Bearer\s+/i, '');
+  const claims = decodeJwtPayload(token);
+
+  if (!claims) {
+    setEstado('Token operativo invalido:', 'No se pudo leer payload JWT.');
+    return;
+  }
+
+  operationalToken = token;
+  setEstado('Token operativo cargado.', {
+    role: claims.role || null,
+    sub: claims.sub || null,
+    note: 'Este token se usara para requests autenticados hasta cerrar sesión o volver a loguear cliente.'
+  });
+});
+
 document.querySelector('#btnMe').addEventListener('click', autoFillClientIdFromMe);
 
 document.querySelector('#btnLogout').addEventListener('click', () => {
+  operationalToken = '';
+  ui.operatorToken.value = '';
   clearToken();
-  setEstado('Sesion cerrada.', 'Token eliminado de localStorage.');
+  setEstado('Sesion cerrada.', 'Token client y token operativo eliminados.');
 });
 
 document.querySelector('#btnCreateOrder').addEventListener('click', async () => {
@@ -175,6 +234,8 @@ document.querySelector('#btnGetOrder').addEventListener('click', async () => {
 
 document.querySelector('#btnUpdateProgress').addEventListener('click', async () => {
   try {
+    ensureOperationalRole();
+
     const orderId = Number(ui.orderId.value);
     const lineId = Number(ui.lineId.value);
     const payload = {
@@ -196,6 +257,8 @@ document.querySelector('#btnUpdateProgress').addEventListener('click', async () 
 
 document.querySelector('#btnCancelLine').addEventListener('click', async () => {
   try {
+    ensureOperationalRole();
+
     const orderId = Number(ui.orderId.value);
     const lineId = Number(ui.lineId.value);
 
