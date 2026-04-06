@@ -16,8 +16,10 @@ const getSSLConfig = () => {
 
 const normalizeConnectionString = (rawUrl) => {
   const parsed = new URL(rawUrl);
-  if (parsed.searchParams.get('sslmode') === 'require') {
+  if (env.PGSSL && parsed.searchParams.get('sslmode') === 'require') {
     parsed.searchParams.set('sslmode', 'no-verify');
+  } else if (!env.PGSSL && parsed.searchParams.has('sslmode')) {
+    parsed.searchParams.delete('sslmode');
   }
   return parsed.toString();
 };
@@ -33,7 +35,7 @@ const pool = hasDiscreteConfig
     })
   : new Pool({
       connectionString: normalizeConnectionString(env.DATABASE_URL),
-      ssl: { rejectUnauthorized: false }
+      ssl: getSSLConfig()
     });
 
 pool.on('error', (error) => {
