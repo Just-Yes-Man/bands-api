@@ -1,57 +1,278 @@
-const socket = io();
+const estado = document.querySelector('#estado');
+const TOKEN_KEY = 'bands_api_token';
 
-const tipoIdealInput = document.querySelector('#tipoIdeal');
-const qrIdealInput = document.querySelector('#qrIdeal');
-const pesoIdealInput = document.querySelector('#pesoIdeal');
-const colorIdealInput = document.querySelector('#colorIdeal');
-const alturaIdealInput = document.querySelector('#alturaIdeal');
-const btnCrearModelo = document.querySelector('#btnCrearModelo');
-const resultadoModelo = document.querySelector('#resultadoModelo');
+const ui = {
+  registerNombre: document.querySelector('#registerNombre'),
+  registerContrasena: document.querySelector('#registerContrasena'),
+  loginNombre: document.querySelector('#loginNombre'),
+  loginContrasena: document.querySelector('#loginContrasena'),
+  operatorToken: document.querySelector('#operatorToken'),
+  createClienteId: document.querySelector('#createClienteId'),
+  createLineas: document.querySelector('#createLineas'),
+  listClienteId: document.querySelector('#listClienteId'),
+  orderId: document.querySelector('#orderId'),
+  lineId: document.querySelector('#lineId'),
+  deltaProcesadas: document.querySelector('#deltaProcesadas'),
+  deltaRechazadas: document.querySelector('#deltaRechazadas'),
+  version: document.querySelector('#version')
+};
 
-const qrInput = document.querySelector('#qr');
-const modeloReferenciaInput = document.querySelector('#modeloReferencia');
-const pesoInput = document.querySelector('#peso');
-const colorInput = document.querySelector('#color');
-const alturaInput = document.querySelector('#altura');
-const canalInput = document.querySelector('#canal');
-const resultado = document.querySelector('#resultado');
-const btnRegistrar = document.querySelector('#btnRegistrar');
+const getToken = () => localStorage.getItem(TOKEN_KEY) || '';
+const setToken = (token) => localStorage.setItem(TOKEN_KEY, token);
+const clearToken = () => localStorage.removeItem(TOKEN_KEY);
 
-btnCrearModelo.addEventListener('click', () => {
- const payload = {
-  tipo: tipoIdealInput.value.trim(),
-  qr: qrIdealInput.value.trim(),
-  pesoEsperado: Number(pesoIdealInput.value),
-  colorEsperado: colorIdealInput.value.trim(),
-  alturaEsperada: Number(alturaIdealInput.value)
- };
+let operationalToken = '';
 
- socket.emit('crear-modelo-producto', payload, (res) => {
-  if (!res.ok) {
-   resultadoModelo.innerText = `❌ ${res.msg}`;
-   return;
+const setEstado = (label, payload) => {
+  estado.textContent = `${label}\n${typeof payload === 'string' ? payload : JSON.stringify(payload, null, 2)}`;
+};
+
+const parseJsonOrThrow = (raw) => {
+  try {
+    return JSON.parse(raw);
+  } catch {
+    throw new Error('JSON invalido en lineas');
+  }
+};
+
+const decodeJwtPayload = (token) => {
+  if (!token || token.split('.').length < 2) {
+    return null;
   }
 
-  resultadoModelo.innerText = `✅ Modelo ideal creado: ${res.modelo.tipo} (id ${res.modelo.id})`;
- });
-});
+  try {
+    const payloadBase64 = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+    const normalized = payloadBase64 + '='.repeat((4 - (payloadBase64.length % 4)) % 4);
+    const json = atob(normalized);
+    return JSON.parse(json);
+  } catch {
+    return null;
+  }
+};
 
-btnRegistrar.addEventListener('click', () => {
- const payload = {
-  qr: qrInput.value.trim(),
-  modeloReferencia: modeloReferenciaInput.value.trim() || null,
-  peso: Number(pesoInput.value),
-  color: colorInput.value.trim(),
-  altura: Number(alturaInput.value),
-  canal: canalInput.value.trim() || '1'
- };
+const activeToken = () => operationalToken || getToken();
 
- socket.emit('registrar-paso-producto', payload, (res) => {
-  if (!res.ok) {
-   resultado.innerText = `❌ ${res.msg}`;
-   return;
+const api = async (path, options = {}, requiresAuth = false) => {
+  const headers = {
+    'Content-Type': 'application/json',
+    ...(options.headers || {})
+  };
+
+  if (requiresAuth) {
+    const token = activeToken();
+    if (!token) {
+      throw new Error('No hay token. Inicia sesión o carga token operativo.');
+    }
+    headers.Authorization = `Bearer ${token}`;
   }
 
-  resultado.innerText = `✅ Paso #${res.paso.idPaso} registrado. QR medido: ${res.paso.modelo.qrMedido} | Modelo ideal: ${res.paso.modelo.tipo}`;
- });
+  const response = await fetch(path, {
+    ...options,
+    headers
+  });
+
+  const payload = await response.json().catch(() => ({}));
+
+  if (!response.ok || payload.ok === false) {
+    const msg = payload?.error?.message || `HTTP ${response.status}`;
+    const code = payload?.error?.code ? ` (${payload.error.code})` : '';
+    throw new Error(`${msg}${code}`);
+  }
+
+  return payload;
+};
+
+const ensureOperationalRole = () => {
+  const token = activeToken();
+  if (!token) {
+    throw new Error('Necesitas token para operar progreso/cancelación.');
+  }
+
+  const claims = decodeJwtPayload(token);
+  const role = claims && claims.role;
+  const allowed = ['admin', 'supervisor', 'operator'];
+
+  if (!allowed.includes(role)) {
+    throw new Error('Para actualizar progreso o cancelar línea usa token con rol admin/supervisor/operator.');
+  }
+
+  return role;
+};
+
+const autoFillClientIdFromMe = async () => {
+  try {
+    const me = await api('/api/v1/protected/me', { method: 'GET' }, true);
+    const id = me?.data?.id;
+    if (id) {
+      ui.createClienteId.value = String(id);
+      ui.listClienteId.value = String(id);
+    }
+    setEstado('Sesion validada (/protected/me):', me);
+  } catch (error) {
+    setEstado('No se pudo autocompletar clienteId:', error.message);
+  }
+};
+
+document.querySelector('#btnRegister').addEventListener('click', async () => {
+  try {
+    const payload = {
+      nombre: ui.registerNombre.value.trim(),
+      contrasena: ui.registerContrasena.value
+    };
+    const data = await api('/api/v1/auth/register', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
+    setEstado('Cliente registrado:', data);
+  } catch (error) {
+    setEstado('Error en registro:', error.message);
+  }
 });
+
+document.querySelector('#btnLogin').addEventListener('click', async () => {
+  try {
+    const payload = {
+      nombre: ui.loginNombre.value.trim(),
+      contrasena: ui.loginContrasena.value
+    };
+    const data = await api('/api/v1/auth/login', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
+    const token = data?.data?.token;
+    if (!token) {
+      throw new Error('El login no devolvio token');
+    }
+
+    operationalToken = '';
+    ui.operatorToken.value = '';
+    setToken(token);
+    setEstado('Login exitoso. Token client guardado en localStorage.', data);
+    await autoFillClientIdFromMe();
+  } catch (error) {
+    setEstado('Error en login:', error.message);
+  }
+});
+
+document.querySelector('#btnUseOperatorToken').addEventListener('click', () => {
+  const token = ui.operatorToken.value.trim().replace(/^Bearer\s+/i, '');
+  const claims = decodeJwtPayload(token);
+
+  if (!claims) {
+    setEstado('Token operativo invalido:', 'No se pudo leer payload JWT.');
+    return;
+  }
+
+  operationalToken = token;
+  setEstado('Token operativo cargado.', {
+    role: claims.role || null,
+    sub: claims.sub || null,
+    note: 'Este token se usara para requests autenticados hasta cerrar sesión o volver a loguear cliente.'
+  });
+});
+
+document.querySelector('#btnMe').addEventListener('click', autoFillClientIdFromMe);
+
+document.querySelector('#btnLogout').addEventListener('click', () => {
+  operationalToken = '';
+  ui.operatorToken.value = '';
+  clearToken();
+  setEstado('Sesion cerrada.', 'Token client y token operativo eliminados.');
+});
+
+document.querySelector('#btnCreateOrder').addEventListener('click', async () => {
+  try {
+    const payload = {
+      clienteId: Number(ui.createClienteId.value),
+      lineas: parseJsonOrThrow(ui.createLineas.value)
+    };
+
+    const data = await api('/api/v1/orders', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    }, true);
+
+    if (data?.data?.order?.id) {
+      ui.orderId.value = String(data.data.order.id);
+    }
+
+    setEstado('Pedido creado:', data);
+  } catch (error) {
+    setEstado('Error creando pedido:', error.message);
+  }
+});
+
+document.querySelector('#btnListOrders').addEventListener('click', async () => {
+  try {
+    const clienteId = Number(ui.listClienteId.value);
+    const data = await api(`/api/v1/orders?clienteId=${clienteId}&page=1&pageSize=20`, {
+      method: 'GET'
+    }, true);
+    setEstado('Listado de pedidos:', data);
+  } catch (error) {
+    setEstado('Error listando pedidos:', error.message);
+  }
+});
+
+document.querySelector('#btnGetOrder').addEventListener('click', async () => {
+  try {
+    const orderId = Number(ui.orderId.value);
+    const data = await api(`/api/v1/orders/${orderId}`, {
+      method: 'GET'
+    }, true);
+
+    const primeraLinea = data?.data?.lineas?.[0];
+    if (primeraLinea?.id) {
+      ui.lineId.value = String(primeraLinea.id);
+    }
+
+    setEstado('Detalle de pedido:', data);
+  } catch (error) {
+    setEstado('Error consultando detalle:', error.message);
+  }
+});
+
+document.querySelector('#btnUpdateProgress').addEventListener('click', async () => {
+  try {
+    ensureOperationalRole();
+
+    const orderId = Number(ui.orderId.value);
+    const lineId = Number(ui.lineId.value);
+    const payload = {
+      deltaProcesadas: Number(ui.deltaProcesadas.value),
+      deltaRechazadas: Number(ui.deltaRechazadas.value),
+      version: Number(ui.version.value)
+    };
+
+    const data = await api(`/api/v1/orders/${orderId}/lines/${lineId}/progress`, {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    }, true);
+
+    setEstado('Progreso actualizado:', data);
+  } catch (error) {
+    setEstado('Error actualizando progreso:', error.message);
+  }
+});
+
+document.querySelector('#btnCancelLine').addEventListener('click', async () => {
+  try {
+    ensureOperationalRole();
+
+    const orderId = Number(ui.orderId.value);
+    const lineId = Number(ui.lineId.value);
+
+    const data = await api(`/api/v1/orders/${orderId}/lines/${lineId}/cancel`, {
+      method: 'POST',
+      body: JSON.stringify({})
+    }, true);
+
+    setEstado('Linea cancelada:', data);
+  } catch (error) {
+    setEstado('Error cancelando linea:', error.message);
+  }
+});
+
+if (getToken()) {
+  autoFillClientIdFromMe();
+}
