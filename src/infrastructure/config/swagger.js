@@ -3,6 +3,7 @@ const swaggerJsdoc = require('swagger-jsdoc');
 
 const buildSwaggerSpec = () => {
   const authContract = path.resolve(process.cwd(), 'specs/002-cliente-auth/contracts/auth-api.yaml');
+  const orderContract = path.resolve(process.cwd(), 'specs/003-order-processing-refactor/contracts/order-api.yaml');
 
   return swaggerJsdoc({
     definition: {
@@ -12,7 +13,7 @@ const buildSwaggerSpec = () => {
         version: '1.0.0'
       }
     },
-    apis: [authContract]
+    apis: [authContract, orderContract]
   });
 };
 

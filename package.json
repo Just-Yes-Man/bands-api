@@ -9,6 +9,8 @@
     "test": "jest --runInBand",
     "test:watch": "jest --watch",
     "test:auth": "jest --runInBand tests/unit/auth tests/contract/http tests/integration/http tests/integration/socket",
+    "test:orders": "jest --runInBand tests/unit/orders tests/contract/http/orders tests/contract/socket/orders tests/integration/http/orders tests/integration/socket/orders",
+    "orders:smoke": "node -e \"console.log('Use quickstart order steps to validate create/query/progress flow')\"",
     "auth:smoke": "node -e \"console.log('Use quickstart auth steps to validate register/login flow')\"",
     "migrate": "node src/infrastructure/db/migrate.js"
   },
