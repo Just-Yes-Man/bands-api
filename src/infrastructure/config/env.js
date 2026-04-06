@@ -35,6 +35,7 @@ module.exports = {
   JWT_AUDIENCE: process.env.JWT_AUDIENCE || 'conveyor-clients',
   LOGIN_RATE_LIMIT_MAX_ATTEMPTS: asNumber(process.env.LOGIN_RATE_LIMIT_MAX_ATTEMPTS, 5),
   LOGIN_RATE_LIMIT_WINDOW_MS: asNumber(process.env.LOGIN_RATE_LIMIT_WINDOW_MS, 10 * 60 * 1000),
+  ORDER_CRITICAL_RETRY_ATTEMPTS: asNumber(process.env.ORDER_CRITICAL_RETRY_ATTEMPTS, 3),
 
   ENABLE_V1_API: asBool(process.env.ENABLE_V1_API, true),
   ENABLE_LEGACY_API: asBool(process.env.ENABLE_LEGACY_API, true),

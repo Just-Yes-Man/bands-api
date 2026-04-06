@@ -24,6 +24,7 @@ class ApiServer {
         origin: '*'
       }
     });
+    this.app.set('io', this.io);
   }
 
   middlewares() {
