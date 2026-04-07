@@ -13,8 +13,8 @@ const router = express.Router();
 router.post('/orders', authJwt, requireOrdersRole('admin', 'supervisor', 'operator', 'client'), createOrderController);
 router.get('/orders', authJwt, enforceOrderOwnership, listOrdersController);
 router.get('/orders/:orderId', authJwt, requireOrdersRole('admin', 'supervisor', 'operator', 'client'), getOrderDetailController);
-router.post('/orders/:orderId/lines/:lineId/progress', authJwt, requireOrdersRole('admin', 'supervisor', 'operator'), updateOrderProgressController);
-router.post('/orders/:orderId/lines/:lineId/cancel', authJwt, requireOrdersRole('admin', 'supervisor', 'operator'), cancelOrderLineController);
+router.post('/orders/:orderId/lines/:lineId/progress', authJwt, requireOrdersRole('admin', 'supervisor', 'operator', 'client'), updateOrderProgressController);
+router.post('/orders/:orderId/lines/:lineId/cancel', authJwt, requireOrdersRole('admin', 'supervisor', 'operator', 'client'), cancelOrderLineController);
 
 module.exports = {
   ordersRoutes: router

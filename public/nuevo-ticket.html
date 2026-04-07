@@ -1,54 +1,100 @@
 <!DOCTYPE html>
-<html>
+<html lang="es">
 <head>
-<title>Registrar paso de producto</title>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Clientes y Pedidos (v1)</title>
 <style>
-body{background:#6c4ed6;font-family:Arial;color:white;min-height:100vh;display:flex;justify-content:center;align-items:center;padding:20px;}
-.layout{display:grid;grid-template-columns:1fr 1fr;gap:20px;max-width:900px;width:100%;}
-.card{background:rgba(0,0,0,.2);padding:30px;border-radius:12px;}
-label{display:block;margin-top:10px;margin-bottom:6px;font-weight:600;}
-input{width:100%;padding:10px;border-radius:6px;border:none;}
-button{margin-top:16px;padding:12px 20px;font-size:16px;background:#2f7bff;color:white;border:none;border-radius:6px;cursor:pointer;width:100%;}
-#resultado,#resultadoModelo{margin-top:16px;min-height:32px;}
+:root{--bg:#0f172a;--panel:#111827;--accent:#22c55e;--text:#e5e7eb;--muted:#9ca3af;--danger:#ef4444}
+*{box-sizing:border-box}
+body{margin:0;font-family:Arial,sans-serif;background:linear-gradient(120deg,#0f172a,#1e293b);color:var(--text);padding:24px}
+h1{margin:0 0 16px}
+h2{margin:0 0 10px;font-size:18px}
+.layout{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px}
+.card{background:rgba(17,24,39,.92);border:1px solid #334155;border-radius:12px;padding:16px}
+label{display:block;margin:8px 0 4px;color:var(--muted);font-size:13px}
+input,textarea{width:100%;padding:10px;border-radius:8px;border:1px solid #334155;background:#0b1220;color:var(--text)}
+textarea{min-height:90px;resize:vertical}
+button{margin-top:10px;padding:10px 12px;border:none;border-radius:8px;background:var(--accent);color:#052e16;font-weight:700;cursor:pointer}
+button.secondary{background:#38bdf8;color:#082f49}
+button.danger{background:var(--danger);color:#fff}
+.inline{display:flex;gap:8px;flex-wrap:wrap}
+#estado{white-space:pre-wrap;background:#020617;border:1px solid #334155;border-radius:12px;padding:12px;margin-bottom:16px;min-height:84px}
+small{color:var(--muted)}
+code{color:#93c5fd}
 </style>
 </head>
 <body>
+<h1>Frontend adaptado a usuarios + pedidos completos (API v1)</h1>
+<p><small>Usa <code>/api/v1/auth/*</code> y <code>/api/v1/orders*</code> con token Bearer. La validación del progreso la resuelve automáticamente el sistema.</small></p>
+<div id="estado">Listo.</div>
+
 <div class="layout">
-<div class="card">
-<h2>Crear modelo ideal</h2>
-<label>Tipo</label>
-<input id="tipoIdeal" placeholder="botella-600ml" />
-<label>QR ideal</label>
-<input id="qrIdeal" placeholder="QR-IDEAL-001" />
-<label>Peso esperado</label>
-<input id="pesoIdeal" type="number" placeholder="150" />
-<label>Color esperado</label>
-<input id="colorIdeal" placeholder="rojo" />
-<label>Altura esperada</label>
-<input id="alturaIdeal" type="number" placeholder="80" />
-<button id="btnCrearModelo">Guardar modelo ideal</button>
-<p id="resultadoModelo"></p>
+  <section class="card">
+    <h2>1) Registro de usuario</h2>
+    <label>Nombre</label>
+    <input id="registerNombre" placeholder="cliente_demo" />
+    <label>Contraseña (mínimo 8 y con número)</label>
+    <input id="registerContrasena" type="password" placeholder="Clave1234" />
+    <button id="btnRegister">Registrar cliente</button>
+  </section>
+
+  <section class="card">
+    <h2>2) Login</h2>
+    <label>Nombre</label>
+    <input id="loginNombre" placeholder="cliente_demo" />
+    <label>Contraseña</label>
+    <input id="loginContrasena" type="password" placeholder="Clave1234" />
+    <button id="btnLogin">Iniciar sesión</button>
+    <div class="inline">
+      <button id="btnMe" class="secondary">Ver /protected/me</button>
+      <button id="btnLogout" class="danger">Cerrar sesión</button>
+    </div>
+  </section>
+
+
+
+  <section class="card">
+    <h2>3) Crear pedido completo</h2>
+    <label>Cliente ID</label>
+    <input id="createClienteId" type="number" placeholder="1" />
+    <label>Líneas JSON (<code>modeloProductoId</code>, <code>cantidad</code>)</label>
+    <textarea id="createLineas">[
+  {"modeloProductoId": 1, "cantidad": 10},
+  {"modeloProductoId": 2, "cantidad": 4}
+]</textarea>
+    <button id="btnCreateOrder">Crear pedido</button>
+  </section>
+
+  <section class="card">
+    <h2>4) Consultar pedidos</h2>
+    <label>Cliente ID</label>
+    <input id="listClienteId" type="number" placeholder="1" />
+    <div class="inline">
+      <button id="btnListOrders" class="secondary">Listar pedidos</button>
+      <button id="btnGetOrder" class="secondary">Ver detalle</button>
+    </div>
+    <label>Order ID (para detalle/progreso/cancelación)</label>
+    <input id="orderId" type="number" placeholder="123" />
+    <label>Line ID (para progreso/cancelación)</label>
+    <input id="lineId" type="number" placeholder="456" />
+  </section>
+
+  <section class="card">
+    <h2>5) Actualizar progreso o cancelar línea</h2>
+    <label>Delta procesadas</label>
+    <input id="deltaProcesadas" type="number" value="1" min="0" />
+    <label>Delta rechazadas</label>
+    <input id="deltaRechazadas" type="number" value="0" min="0" />
+    <label>Version</label>
+    <input id="version" type="number" value="0" min="0" />
+    <div class="inline">
+      <button id="btnUpdateProgress">Actualizar progreso</button>
+      <button id="btnCancelLine" class="danger">Cancelar línea</button>
+    </div>
+  </section>
 </div>
 
-<div class="card">
-<h2>Registro de producto real en banda</h2>
-<label>QR medido del producto (libre)</label>
-<input id="qr" placeholder="QR-LIBRE-001" />
-<label>Modelo ideal (tipo o QR) - opcional</label>
-<input id="modeloReferencia" placeholder="ej. botella-600ml" />
-<label>Peso detectado</label>
-<input id="peso" type="number" placeholder="150" />
-<label>Color detectado</label>
-<input id="color" placeholder="rojo" />
-<label>Altura detectada</label>
-<input id="altura" type="number" placeholder="80" />
-<label>Canal de banda</label>
-<input id="canal" placeholder="1" value="1" />
-<button id="btnRegistrar">Registrar paso</button>
-<p id="resultado"></p>
-</div>
-</div>
-<script src="/socket.io/socket.io.js"></script>
 <script src="js/nuevo-ticket.js"></script>
 </body>
 </html>
