@@ -26,7 +26,7 @@ code{color:#93c5fd}
 </head>
 <body>
 <h1>Frontend adaptado a usuarios + pedidos completos (API v1)</h1>
-<p><small>Usa <code>/api/v1/auth/*</code> y <code>/api/v1/orders*</code> con token Bearer.</small></p>
+<p><small>Usa <code>/api/v1/auth/*</code> y <code>/api/v1/orders*</code> con token Bearer. La validación del progreso la resuelve automáticamente el sistema.</small></p>
 <div id="estado">Listo.</div>
 
 <div class="layout">
@@ -53,14 +53,6 @@ code{color:#93c5fd}
   </section>
 
 
-
-  <section class="card">
-    <h2>2.1) Token operativo (opcional)</h2>
-    <p><small>Para <strong>actualizar progreso/cancelar línea</strong> necesitas un JWT con rol <code>admin</code>, <code>supervisor</code> u <code>operator</code>.</small></p>
-    <label>Pega token Bearer (solo JWT)</label>
-    <textarea id="operatorToken" placeholder="eyJhbGciOi..."></textarea>
-    <button id="btnUseOperatorToken" class="secondary">Usar token operativo</button>
-  </section>
 
   <section class="card">
     <h2>3) Crear pedido completo</h2>

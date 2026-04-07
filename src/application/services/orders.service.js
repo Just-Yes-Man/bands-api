@@ -63,6 +63,7 @@ class OrdersService {
     if (!order) {
       throw asOrderError('ORDER_NOT_FOUND');
     }
+    this.assertOrderMutationAccess({ actor, order });
     if (order.estado === ORDER_STATUS.CANCELADO) {
       throw asOrderError('ORDER_CANCELED');
     }
@@ -112,6 +113,7 @@ class OrdersService {
     if (!order) {
       throw asOrderError('ORDER_NOT_FOUND');
     }
+    this.assertOrderMutationAccess({ actor, order });
     if (order.estado === ORDER_STATUS.CANCELADO) {
       throw asOrderError('ORDER_CANCELED');
     }
@@ -233,6 +235,18 @@ class OrdersService {
   }
 
   assertOrderReadAccess({ actor, order }) {
+    if (!actor || actor.role === 'admin' || actor.role === 'supervisor' || actor.role === 'operator') {
+      return;
+    }
+
+    if (actor.role === 'client' && Number(actor.sub) === Number(order.cliente_id)) {
+      return;
+    }
+
+    throw asOrderError('ORDER_FORBIDDEN');
+  }
+
+  assertOrderMutationAccess({ actor, order }) {
     if (!actor || actor.role === 'admin' || actor.role === 'supervisor' || actor.role === 'operator') {
       return;
     }
