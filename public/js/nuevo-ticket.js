@@ -11,6 +11,7 @@ const ui = {
   listClienteId: document.querySelector('#listClienteId'),
   orderId: document.querySelector('#orderId'),
   lineId: document.querySelector('#lineId'),
+  lineasDisponibles: document.querySelector('#lineasDisponibles'),
   deltaProcesadas: document.querySelector('#deltaProcesadas'),
   deltaRechazadas: document.querySelector('#deltaRechazadas'),
   version: document.querySelector('#version')
@@ -74,6 +75,34 @@ const autoFillClientIdFromMe = async () => {
   } catch (error) {
     setEstado('No se pudo autocompletar clienteId:', error.message);
   }
+};
+
+const renderLineasDisponibles = (detail) => {
+  const lineas = detail?.data?.lineas || [];
+
+  if (!lineas.length) {
+    ui.lineasDisponibles.innerHTML = '<small>No hay líneas para este pedido.</small>';
+    return;
+  }
+
+  const items = lineas.map((linea) => (
+    `<button class="secondary" data-line-id="${linea.id}" data-version="${linea.version || 0}" style="margin-right:8px;margin-top:8px;">` +
+    `Usar línea #${linea.id} (v${linea.version || 0})` +
+    '</button>'
+  )).join('');
+
+  ui.lineasDisponibles.innerHTML = `<p><small>Selecciona una línea del pedido:</small></p>${items}`;
+
+  ui.lineasDisponibles.querySelectorAll('button[data-line-id]').forEach((button) => {
+    button.addEventListener('click', () => {
+      ui.lineId.value = button.dataset.lineId;
+      ui.version.value = button.dataset.version || '0';
+      setEstado('Línea seleccionada:', {
+        lineId: Number(ui.lineId.value),
+        version: Number(ui.version.value)
+      });
+    });
+  });
 };
 
 document.querySelector('#btnRegister').addEventListener('click', async () => {
@@ -166,7 +195,10 @@ document.querySelector('#btnGetOrder').addEventListener('click', async () => {
     const primeraLinea = data?.data?.lineas?.[0];
     if (primeraLinea?.id) {
       ui.lineId.value = String(primeraLinea.id);
+      ui.version.value = String(primeraLinea.version || 0);
     }
+
+    renderLineasDisponibles(data);
 
     setEstado('Detalle de pedido:', data);
   } catch (error) {
@@ -178,6 +210,10 @@ document.querySelector('#btnUpdateProgress').addEventListener('click', async () 
   try {
     const orderId = Number(ui.orderId.value);
     const lineId = Number(ui.lineId.value);
+    if (!Number.isFinite(orderId) || !Number.isFinite(lineId) || orderId <= 0 || lineId <= 0) {
+      throw new Error('Order ID y Line ID deben ser numeros positivos.');
+    }
+
     const payload = {
       deltaProcesadas: Number(ui.deltaProcesadas.value),
       deltaRechazadas: Number(ui.deltaRechazadas.value),
@@ -189,6 +225,12 @@ document.querySelector('#btnUpdateProgress').addEventListener('click', async () 
       body: JSON.stringify(payload)
     }, true);
 
+    const lineaActualizada = (data?.data?.lineas || []).find((linea) => Number(linea.id) === lineId);
+    if (lineaActualizada) {
+      ui.version.value = String(lineaActualizada.version || payload.version);
+    }
+    renderLineasDisponibles(data);
+
     setEstado('Progreso actualizado:', data);
   } catch (error) {
     setEstado('Error actualizando progreso:', error.message);
@@ -199,11 +241,20 @@ document.querySelector('#btnCancelLine').addEventListener('click', async () => {
   try {
     const orderId = Number(ui.orderId.value);
     const lineId = Number(ui.lineId.value);
+    if (!Number.isFinite(orderId) || !Number.isFinite(lineId) || orderId <= 0 || lineId <= 0) {
+      throw new Error('Order ID y Line ID deben ser numeros positivos.');
+    }
 
     const data = await api(`/api/v1/orders/${orderId}/lines/${lineId}/cancel`, {
       method: 'POST',
       body: JSON.stringify({})
     }, true);
+
+    const lineaActualizada = (data?.data?.lineas || []).find((linea) => Number(linea.id) === lineId);
+    if (lineaActualizada) {
+      ui.version.value = String(lineaActualizada.version || ui.version.value);
+    }
+    renderLineasDisponibles(data);
 
     setEstado('Linea cancelada:', data);
   } catch (error) {

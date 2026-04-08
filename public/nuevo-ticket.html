@@ -78,6 +78,7 @@ code{color:#93c5fd}
     <input id="orderId" type="number" placeholder="123" />
     <label>Line ID (para progreso/cancelación)</label>
     <input id="lineId" type="number" placeholder="456" />
+    <div id="lineasDisponibles"></div>
   </section>
 
   <section class="card">
@@ -88,6 +89,7 @@ code{color:#93c5fd}
     <input id="deltaRechazadas" type="number" value="0" min="0" />
     <label>Version</label>
     <input id="version" type="number" value="0" min="0" />
+    <p><small><strong>¿Qué es version?</strong> Es un contador de concurrencia por línea. Usa la versión actual de la línea (se autocompleta al consultar detalle o al elegir una línea).</small></p>
     <div class="inline">
       <button id="btnUpdateProgress">Actualizar progreso</button>
       <button id="btnCancelLine" class="danger">Cancelar línea</button>
