@@ -7,6 +7,7 @@ class EmqxOrdersPublisher {
   constructor() {
     this.enabled = Boolean(env.EMQX_ENABLED);
     this.topic = env.EMQX_ORDERS_CREATE_TOPIC || 'pedidos/creacion';
+    this.progressTopic = env.EMQX_ORDERS_PROGRESS_TOPIC || 'pedidos/avances';
     this.qos = Number.isFinite(env.EMQX_QOS) ? env.EMQX_QOS : 1;
     this.client = null;
     this.connectPromise = null;
@@ -17,19 +18,46 @@ class EmqxOrdersPublisher {
       return { ok: false, skipped: true, reason: 'emqx_disabled' };
     }
 
-    const client = await this.ensureConnected();
-
-    const payload = JSON.stringify({
+    return this.publishEvent({
+      topic: this.topic,
+      payload: {
       event: 'pedido.creado',
       occurredAt: new Date().toISOString(),
       order: orderDetail && orderDetail.order ? orderDetail.order : null,
       progress: orderDetail && orderDetail.progress ? orderDetail.progress : null,
       lineas: orderDetail && Array.isArray(orderDetail.lineas) ? orderDetail.lineas : [],
       actor: actor ? { sub: actor.sub || null, role: actor.role || null } : null
+      },
+      orderId: orderDetail && orderDetail.order ? orderDetail.order.id : null
     });
+  }
+
+  async publishOrderProgress({ orderDetail, actor, reason }) {
+    if (!this.enabled) {
+      return { ok: false, skipped: true, reason: 'emqx_disabled' };
+    }
+
+    return this.publishEvent({
+      topic: this.progressTopic,
+      payload: {
+        event: 'pedido.avance',
+        reason: reason || 'updated',
+        occurredAt: new Date().toISOString(),
+        order: orderDetail && orderDetail.order ? orderDetail.order : null,
+        progress: orderDetail && orderDetail.progress ? orderDetail.progress : null,
+        lineas: orderDetail && Array.isArray(orderDetail.lineas) ? orderDetail.lineas : [],
+        actor: actor ? { sub: actor.sub || null, role: actor.role || null } : null
+      },
+      orderId: orderDetail && orderDetail.order ? orderDetail.order.id : null
+    });
+  }
+
+  async publishEvent({ topic, payload, orderId }) {
+    const client = await this.ensureConnected();
+    const encodedPayload = JSON.stringify(payload);
 
     await new Promise((resolve, reject) => {
-      client.publish(this.topic, payload, { qos: this.qos, retain: false }, (error) => {
+      client.publish(topic, encodedPayload, { qos: this.qos, retain: false }, (error) => {
         if (error) {
           reject(error);
           return;
@@ -39,9 +67,9 @@ class EmqxOrdersPublisher {
     });
 
     logger.info('orders.emqx.published', {
-      topic: this.topic,
+      topic,
       qos: this.qos,
-      orderId: orderDetail && orderDetail.order ? orderDetail.order.id : null
+      orderId
     });
 
     return { ok: true };
@@ -69,7 +97,11 @@ class EmqxOrdersPublisher {
       this.client = client;
 
       client.once('connect', () => {
-        logger.info('orders.emqx.connected', { url: env.EMQX_URL, topic: this.topic });
+        logger.info('orders.emqx.connected', {
+          url: env.EMQX_URL,
+          createTopic: this.topic,
+          progressTopic: this.progressTopic
+        });
         resolve(client);
       });
 

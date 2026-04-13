@@ -124,7 +124,24 @@ class OrdersService {
       correlationId: `order-progress-${orderId}-${lineId}-${Date.now()}`
     });
 
-    return this.getOrderDetail({ orderId, actor });
+    const detail = await this.getOrderDetail({ orderId, actor });
+
+    if (this.ordersEventPublisher && typeof this.ordersEventPublisher.publishOrderProgress === 'function') {
+      try {
+        await this.ordersEventPublisher.publishOrderProgress({
+          orderDetail: detail,
+          actor,
+          reason: 'line_progress_updated'
+        });
+      } catch (error) {
+        logger.warn('orders.emqx.publish_failed', {
+          orderId,
+          message: error.message
+        });
+      }
+    }
+
+    return detail;
   }
 
   async cancelLine({ orderId, lineId, actor, io }) {
@@ -157,7 +174,25 @@ class OrdersService {
     });
 
     await this.recomputeAndPersistStatus({ orderId, io });
-    return this.getOrderDetail({ orderId, actor });
+
+    const detail = await this.getOrderDetail({ orderId, actor });
+
+    if (this.ordersEventPublisher && typeof this.ordersEventPublisher.publishOrderProgress === 'function') {
+      try {
+        await this.ordersEventPublisher.publishOrderProgress({
+          orderDetail: detail,
+          actor,
+          reason: 'line_canceled'
+        });
+      } catch (error) {
+        logger.warn('orders.emqx.publish_failed', {
+          orderId,
+          message: error.message
+        });
+      }
+    }
+
+    return detail;
   }
 
   async recomputeAndPersistStatus({ orderId, io }) {

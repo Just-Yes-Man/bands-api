@@ -43,6 +43,7 @@ module.exports = {
   EMQX_CLIENT_ID: process.env.EMQX_CLIENT_ID,
   EMQX_QOS: asNumber(process.env.EMQX_QOS, 1),
   EMQX_ORDERS_CREATE_TOPIC: process.env.EMQX_ORDERS_CREATE_TOPIC || 'pedidos/creacion',
+  EMQX_ORDERS_PROGRESS_TOPIC: process.env.EMQX_ORDERS_PROGRESS_TOPIC || 'pedidos/avances',
 
   ENABLE_V1_API: asBool(process.env.ENABLE_V1_API, true),
   ENABLE_LEGACY_API: asBool(process.env.ENABLE_LEGACY_API, true),
