@@ -1,12 +1,15 @@
 const { computeOrderStatus, ORDER_STATUS } = require('../../domain/policies/order-state-policy');
 const { asOrderError } = require('../../shared/errors/order-errors');
 
+const { logger } = require('../../infrastructure/logging/logger');
+
 class OrdersService {
-  constructor({ ordersRepository, orderLinesRepository, orderStateEventsRepository, orderRealtimeService }) {
+  constructor({ ordersRepository, orderLinesRepository, orderStateEventsRepository, orderRealtimeService, ordersEventPublisher = null }) {
     this.ordersRepository = ordersRepository;
     this.orderLinesRepository = orderLinesRepository;
     this.orderStateEventsRepository = orderStateEventsRepository;
     this.orderRealtimeService = orderRealtimeService;
+    this.ordersEventPublisher = ordersEventPublisher;
   }
 
   async createOrder({ clienteId, lineas, actor, io }) {
@@ -32,7 +35,23 @@ class OrdersService {
       correlationId: `order-created-${order.id}`
     });
 
-    return this.getOrderDetail({ orderId: order.id, actor });
+    const detail = await this.getOrderDetail({ orderId: order.id, actor });
+
+    if (this.ordersEventPublisher && typeof this.ordersEventPublisher.publishOrderCreated === 'function') {
+      try {
+        await this.ordersEventPublisher.publishOrderCreated({
+          orderDetail: detail,
+          actor
+        });
+      } catch (error) {
+        logger.warn('orders.emqx.publish_failed', {
+          orderId: order.id,
+          message: error.message
+        });
+      }
+    }
+
+    return detail;
   }
 
   async listOrders({ clienteId, page, pageSize, actor }) {

@@ -10,6 +10,7 @@ const { OrderLinesRepository } = require('../db/repositories/order-lines.reposit
 const { OrderStateEventsRepository } = require('../db/repositories/order-state-events.repository');
 const { OrderRealtimeService } = require('../../application/services/order-realtime.service');
 const { OrdersService } = require('../../application/services/orders.service');
+const { EmqxOrdersPublisher } = require('../messaging/emqx-orders.publisher');
 const { CreateOrderUseCase } = require('../../application/use-cases/create-order.use-case');
 const { ListOrdersUseCase } = require('../../application/use-cases/list-orders.use-case');
 const { GetOrderDetailUseCase } = require('../../application/use-cases/get-order-detail.use-case');
@@ -33,12 +34,14 @@ const buildContainer = () => {
   const orderLinesRepository = new OrderLinesRepository();
   const orderStateEventsRepository = new OrderStateEventsRepository();
   const orderRealtimeService = new OrderRealtimeService();
+  const ordersEventPublisher = new EmqxOrdersPublisher();
 
   const ordersService = new OrdersService({
     ordersRepository,
     orderLinesRepository,
     orderStateEventsRepository,
-    orderRealtimeService
+    orderRealtimeService,
+    ordersEventPublisher
   });
 
   return {
