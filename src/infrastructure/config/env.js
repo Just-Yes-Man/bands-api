@@ -36,6 +36,13 @@ module.exports = {
   LOGIN_RATE_LIMIT_MAX_ATTEMPTS: asNumber(process.env.LOGIN_RATE_LIMIT_MAX_ATTEMPTS, 5),
   LOGIN_RATE_LIMIT_WINDOW_MS: asNumber(process.env.LOGIN_RATE_LIMIT_WINDOW_MS, 10 * 60 * 1000),
   ORDER_CRITICAL_RETRY_ATTEMPTS: asNumber(process.env.ORDER_CRITICAL_RETRY_ATTEMPTS, 3),
+  EMQX_ENABLED: asBool(process.env.EMQX_ENABLED, false),
+  EMQX_URL: process.env.EMQX_URL || 'mqtt://localhost:1883',
+  EMQX_USERNAME: process.env.EMQX_USERNAME,
+  EMQX_PASSWORD: process.env.EMQX_PASSWORD,
+  EMQX_CLIENT_ID: process.env.EMQX_CLIENT_ID,
+  EMQX_QOS: asNumber(process.env.EMQX_QOS, 1),
+  EMQX_ORDERS_CREATE_TOPIC: process.env.EMQX_ORDERS_CREATE_TOPIC || 'pedidos/creacion',
 
   ENABLE_V1_API: asBool(process.env.ENABLE_V1_API, true),
   ENABLE_LEGACY_API: asBool(process.env.ENABLE_LEGACY_API, true),
