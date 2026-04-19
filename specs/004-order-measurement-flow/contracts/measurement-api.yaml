@@ -1,0 +1,360 @@
+openapi: 3.0.3
+info:
+  title: Measurement Flow API
+  version: 1.0.0
+  description: Contracts for order measurement process orchestration and measurement capture.
+servers:
+  - url: http://localhost:1200
+
+paths:
+  /api/v1/orders/{orderId}/measurement-processes:
+    post:
+      tags: [Measurement]
+      summary: Start measurement process for an order (optionally for one line)
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: orderId
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateMeasurementProcessRequest'
+      responses:
+        '201':
+          description: Measurement process created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MeasurementProcessResponse'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden by role or ownership scope
+    get:
+      tags: [Measurement]
+      summary: List measurement processes for an order
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: orderId
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Measurement process list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MeasurementProcessListResponse'
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden by role or ownership scope
+
+  /api/v1/measurement-processes/{processId}:
+    get:
+      tags: [Measurement]
+      summary: Get process detail with state history and measurements
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: processId
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Process detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MeasurementProcessDetailResponse'
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden by role or ownership scope
+        '404':
+          description: Process not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/measurement-processes/{processId}/state:
+    post:
+      tags: [Measurement]
+      summary: Transition process state
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: processId
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TransitionProcessStateRequest'
+      responses:
+        '200':
+          description: State transitioned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MeasurementProcessResponse'
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden by role or ownership scope
+        '409':
+          description: Invalid transition
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/measurement-processes/{processId}/measurements:
+    post:
+      tags: [Measurement]
+      summary: Register a measurement and apply order/line progress
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: processId
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterMeasurementRequest'
+      responses:
+        '201':
+          description: Measurement registered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MeasurementRegisteredResponse'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden by role or ownership scope
+        '409':
+          description: Conflict (duplicate idempotency or process/line state)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    CreateMeasurementProcessRequest:
+      type: object
+      properties:
+        lineaPedidoId:
+          type: integer
+          nullable: true
+        observacion:
+          type: string
+
+    TransitionProcessStateRequest:
+      type: object
+      required: [estado]
+      properties:
+        estado:
+          type: string
+          enum: [ESPERANDO, EN_PROCESO, COMPLETADO, FALLIDO, CANCELADO]
+        observacion:
+          type: string
+
+    RegisterMeasurementRequest:
+      type: object
+      required: [modeloProductoId, idempotencyKey]
+      properties:
+        modeloProductoId:
+          type: integer
+        idempotencyKey:
+          type: string
+          minLength: 6
+          maxLength: 120
+          pattern: '^[a-zA-Z0-9][a-zA-Z0-9-]{5,119}$'
+        qrOk:
+          type: boolean
+        pesoOk:
+          type: boolean
+        colorOk:
+          type: boolean
+        alturaOk:
+          type: boolean
+
+    MeasurementProcess:
+      type: object
+      required: [id, pedidoId, estadoActual, iniciadoEn]
+      properties:
+        id:
+          type: integer
+        pedidoId:
+          type: integer
+        lineaPedidoId:
+          type: integer
+          nullable: true
+        estadoActual:
+          type: string
+          enum: [ESPERANDO, EN_PROCESO, COMPLETADO, FALLIDO, CANCELADO]
+        iniciadoEn:
+          type: string
+        finalizadoEn:
+          type: string
+          nullable: true
+
+    MeasurementStateHistoryEntry:
+      type: object
+      required: [estado, timestampEstado]
+      properties:
+        estado:
+          type: string
+        timestampEstado:
+          type: string
+        observacion:
+          type: string
+          nullable: true
+
+    MeasurementRecord:
+      type: object
+      required: [id, procesoMedicionId, modeloProductoId, resultadoFinal, capturadaEn]
+      properties:
+        id:
+          type: integer
+        procesoMedicionId:
+          type: integer
+        modeloProductoId:
+          type: integer
+        qrOk:
+          type: boolean
+          nullable: true
+        pesoOk:
+          type: boolean
+          nullable: true
+        colorOk:
+          type: boolean
+          nullable: true
+        alturaOk:
+          type: boolean
+          nullable: true
+        resultadoFinal:
+          type: string
+          enum: [PENDIENTE, APROBADA, RECHAZADA]
+        capturadaEn:
+          type: string
+
+    MeasurementProcessResponse:
+      type: object
+      required: [ok, data]
+      properties:
+        ok:
+          type: boolean
+          example: true
+        data:
+          $ref: '#/components/schemas/MeasurementProcess'
+
+    MeasurementProcessListResponse:
+      type: object
+      required: [ok, data]
+      properties:
+        ok:
+          type: boolean
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/MeasurementProcess'
+
+    MeasurementProcessDetailResponse:
+      type: object
+      required: [ok, data]
+      properties:
+        ok:
+          type: boolean
+        data:
+          type: object
+          required: [process, historialEstados, mediciones]
+          properties:
+            process:
+              $ref: '#/components/schemas/MeasurementProcess'
+            historialEstados:
+              type: array
+              items:
+                $ref: '#/components/schemas/MeasurementStateHistoryEntry'
+            mediciones:
+              type: array
+              items:
+                $ref: '#/components/schemas/MeasurementRecord'
+
+    MeasurementRegisteredResponse:
+      type: object
+      required: [ok, data]
+      properties:
+        ok:
+          type: boolean
+        data:
+          type: object
+          required: [measurement, progressApplied]
+          properties:
+            measurement:
+              $ref: '#/components/schemas/MeasurementRecord'
+            progressApplied:
+              type: object
+              required: [deltaProcesadas, deltaRechazadas]
+              properties:
+                deltaProcesadas:
+                  type: integer
+                deltaRechazadas:
+                  type: integer
+
+    ErrorResponse:
+      type: object
+      required: [ok, error]
+      properties:
+        ok:
+          type: boolean
+          example: false
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code:
+              type: string
+            message:
+              type: string
