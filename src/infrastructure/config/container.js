@@ -16,6 +16,17 @@ const { ListOrdersUseCase } = require('../../application/use-cases/list-orders.u
 const { GetOrderDetailUseCase } = require('../../application/use-cases/get-order-detail.use-case');
 const { UpdateOrderLineProgressUseCase } = require('../../application/use-cases/update-order-line-progress.use-case');
 const { CancelOrderLineUseCase } = require('../../application/use-cases/cancel-order-line.use-case');
+const { MeasurementProcessesRepository } = require('../db/repositories/measurement-processes.repository');
+const { MeasurementProcessStateHistoryRepository } = require('../db/repositories/measurement-process-state-history.repository');
+const { MeasurementsRepository } = require('../db/repositories/measurements.repository');
+const { MeasurementRealtimeService } = require('../../application/services/measurement-realtime.service');
+const { MeasurementProcessesService } = require('../../application/services/measurement-processes.service');
+const { MeasurementCaptureService } = require('../../application/services/measurement-capture.service');
+const { CreateMeasurementProcessUseCase } = require('../../application/use-cases/create-measurement-process.use-case');
+const { TransitionMeasurementProcessStateUseCase } = require('../../application/use-cases/transition-measurement-process-state.use-case');
+const { RegisterMeasurementUseCase } = require('../../application/use-cases/register-measurement.use-case');
+const { ListMeasurementProcessesUseCase } = require('../../application/use-cases/list-measurement-processes.use-case');
+const { GetMeasurementProcessDetailUseCase } = require('../../application/use-cases/get-measurement-process-detail.use-case');
 
 const buildContainer = () => {
   const clientRepository = new ClientAuthRepository();
@@ -35,13 +46,36 @@ const buildContainer = () => {
   const orderStateEventsRepository = new OrderStateEventsRepository();
   const orderRealtimeService = new OrderRealtimeService();
   const ordersEventPublisher = new EmqxOrdersPublisher();
+  const measurementProcessesRepository = new MeasurementProcessesRepository();
+  const measurementProcessStateHistoryRepository = new MeasurementProcessStateHistoryRepository();
+  const measurementsRepository = new MeasurementsRepository();
+  const measurementRealtimeService = new MeasurementRealtimeService();
 
   const ordersService = new OrdersService({
     ordersRepository,
     orderLinesRepository,
     orderStateEventsRepository,
     orderRealtimeService,
-    ordersEventPublisher
+    ordersEventPublisher,
+    measurementProcessesRepository
+  });
+
+  const measurementProcessesService = new MeasurementProcessesService({
+    measurementProcessesRepository,
+    measurementProcessStateHistoryRepository,
+    measurementsRepository,
+    ordersRepository,
+    orderLinesRepository,
+    measurementRealtimeService
+  });
+
+  const measurementCaptureService = new MeasurementCaptureService({
+    measurementProcessesRepository,
+    measurementsRepository,
+    ordersRepository,
+    orderLinesRepository,
+    measurementRealtimeService,
+    ordersService
   });
 
   return {
@@ -54,7 +88,14 @@ const buildContainer = () => {
     listOrdersUseCase: new ListOrdersUseCase({ ordersService }),
     getOrderDetailUseCase: new GetOrderDetailUseCase({ ordersService }),
     updateOrderLineProgressUseCase: new UpdateOrderLineProgressUseCase({ ordersService }),
-    cancelOrderLineUseCase: new CancelOrderLineUseCase({ ordersService })
+    cancelOrderLineUseCase: new CancelOrderLineUseCase({ ordersService }),
+    measurementProcessesService,
+    measurementCaptureService,
+    createMeasurementProcessUseCase: new CreateMeasurementProcessUseCase({ measurementProcessesService }),
+    transitionMeasurementProcessStateUseCase: new TransitionMeasurementProcessStateUseCase({ measurementProcessesService }),
+    registerMeasurementUseCase: new RegisterMeasurementUseCase({ measurementCaptureService }),
+    listMeasurementProcessesUseCase: new ListMeasurementProcessesUseCase({ measurementProcessesService }),
+    getMeasurementProcessDetailUseCase: new GetMeasurementProcessDetailUseCase({ measurementProcessesService })
   };
 };
 

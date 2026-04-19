@@ -10,8 +10,12 @@
     "test:watch": "jest --watch",
     "test:auth": "jest --runInBand tests/unit/auth tests/contract/http tests/integration/http tests/integration/socket",
     "test:orders": "jest --runInBand tests/unit/orders tests/contract/http/orders tests/contract/socket/orders tests/integration/http/orders tests/integration/socket/orders",
+    "test:measurement": "jest --runInBand tests/unit/measurement tests/contract/http/measurement*.test.js tests/integration/http/measurement*.test.js tests/integration/migration/measurement*.test.js tests/integration/socket/measurement*.test.js",
+    "test:measurement:contract": "jest --runInBand tests/contract/http/measurement*.test.js tests/contract/socket/measurement*.test.js",
+    "test:measurement:integration": "jest --runInBand tests/integration/http/measurement*.test.js tests/integration/socket/measurement*.test.js tests/integration/migration/measurement*.test.js",
     "orders:smoke": "node -e \"console.log('Use quickstart order steps to validate create/query/progress flow')\"",
     "auth:smoke": "node -e \"console.log('Use quickstart auth steps to validate register/login flow')\"",
+    "measurement:smoke": "node -e \"console.log('Use quickstart measurement checklist to validate process lifecycle, idempotency and realtime events')\"",
     "migrate": "node src/infrastructure/db/migrate.js"
   },
   "keywords": [],

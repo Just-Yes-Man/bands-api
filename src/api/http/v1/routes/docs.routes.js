@@ -6,6 +6,10 @@ const router = express.Router();
 
 const spec = buildSwaggerSpec();
 
+router.get('/openapi.json', (_req, res) => {
+  res.json(spec);
+});
+
 router.use('/docs', swaggerUi.serve, swaggerUi.setup(spec));
 
 module.exports = {

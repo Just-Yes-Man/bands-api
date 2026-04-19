@@ -4,12 +4,20 @@ const { asOrderError } = require('../../shared/errors/order-errors');
 const { logger } = require('../../infrastructure/logging/logger');
 
 class OrdersService {
-  constructor({ ordersRepository, orderLinesRepository, orderStateEventsRepository, orderRealtimeService, ordersEventPublisher = null }) {
+  constructor({
+    ordersRepository,
+    orderLinesRepository,
+    orderStateEventsRepository,
+    orderRealtimeService,
+    ordersEventPublisher = null,
+    measurementProcessesRepository = null
+  }) {
     this.ordersRepository = ordersRepository;
     this.orderLinesRepository = orderLinesRepository;
     this.orderStateEventsRepository = orderStateEventsRepository;
     this.orderRealtimeService = orderRealtimeService;
     this.ordersEventPublisher = ordersEventPublisher;
+    this.measurementProcessesRepository = measurementProcessesRepository;
   }
 
   async createOrder({ clienteId, lineas, actor, io }) {
@@ -90,6 +98,13 @@ class OrdersService {
     const line = await this.orderLinesRepository.getById(lineId);
     if (!line || Number(line.pedido_id) !== Number(orderId)) {
       throw asOrderError('ORDER_LINE_NOT_FOUND');
+    }
+
+    if (this.measurementProcessesRepository && typeof this.measurementProcessesRepository.hasActiveByLine === 'function') {
+      const activeMeasurement = await this.measurementProcessesRepository.hasActiveByLine(lineId);
+      if (activeMeasurement) {
+        throw asOrderError('ORDER_LINE_MEASUREMENT_LOCKED');
+      }
     }
 
     const updatedLine = await this.orderLinesRepository.updateProgress({
