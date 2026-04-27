@@ -63,6 +63,27 @@ class OrderLinesRepository {
     );
     return result.rows[0] || null;
   }
+
+  async applyMeasurementProgress({ lineId, deltaProcesadas, deltaRechazadas }) {
+    const result = await pool.query(
+      `UPDATE lineas_pedido
+       SET procesadas = procesadas + $2,
+           rechazadas = rechazadas + $3,
+           version = version + 1,
+           updated_at = now(),
+           estado_linea = CASE
+             WHEN (procesadas + $2 + rechazadas + $3) >= cantidad THEN 'CERRADA'
+             ELSE estado_linea
+           END
+       WHERE id = $1
+         AND estado_linea = 'ACTIVA'
+         AND (procesadas + rechazadas + $2 + $3) <= cantidad
+       RETURNING id, pedido_id, modelo_producto_id, cantidad, procesadas, rechazadas, estado_linea, version, created_at, updated_at`,
+      [lineId, deltaProcesadas, deltaRechazadas]
+    );
+
+    return result.rows[0] || null;
+  }
 }
 
 module.exports = {

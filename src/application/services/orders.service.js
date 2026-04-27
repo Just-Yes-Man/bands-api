@@ -1,12 +1,23 @@
 const { computeOrderStatus, ORDER_STATUS } = require('../../domain/policies/order-state-policy');
 const { asOrderError } = require('../../shared/errors/order-errors');
 
+const { logger } = require('../../infrastructure/logging/logger');
+
 class OrdersService {
-  constructor({ ordersRepository, orderLinesRepository, orderStateEventsRepository, orderRealtimeService }) {
+  constructor({
+    ordersRepository,
+    orderLinesRepository,
+    orderStateEventsRepository,
+    orderRealtimeService,
+    ordersEventPublisher = null,
+    measurementProcessesRepository = null
+  }) {
     this.ordersRepository = ordersRepository;
     this.orderLinesRepository = orderLinesRepository;
     this.orderStateEventsRepository = orderStateEventsRepository;
     this.orderRealtimeService = orderRealtimeService;
+    this.ordersEventPublisher = ordersEventPublisher;
+    this.measurementProcessesRepository = measurementProcessesRepository;
   }
 
   async createOrder({ clienteId, lineas, actor, io }) {
@@ -32,7 +43,23 @@ class OrdersService {
       correlationId: `order-created-${order.id}`
     });
 
-    return this.getOrderDetail({ orderId: order.id, actor });
+    const detail = await this.getOrderDetail({ orderId: order.id, actor });
+
+    if (this.ordersEventPublisher && typeof this.ordersEventPublisher.publishOrderCreated === 'function') {
+      try {
+        await this.ordersEventPublisher.publishOrderCreated({
+          orderDetail: detail,
+          actor
+        });
+      } catch (error) {
+        logger.warn('orders.emqx.publish_failed', {
+          orderId: order.id,
+          message: error.message
+        });
+      }
+    }
+
+    return detail;
   }
 
   async listOrders({ clienteId, page, pageSize, actor }) {
@@ -73,6 +100,13 @@ class OrdersService {
       throw asOrderError('ORDER_LINE_NOT_FOUND');
     }
 
+    if (this.measurementProcessesRepository && typeof this.measurementProcessesRepository.hasActiveByLine === 'function') {
+      const activeMeasurement = await this.measurementProcessesRepository.hasActiveByLine(lineId);
+      if (activeMeasurement) {
+        throw asOrderError('ORDER_LINE_MEASUREMENT_LOCKED');
+      }
+    }
+
     const updatedLine = await this.orderLinesRepository.updateProgress({
       lineId,
       deltaProcesadas,
@@ -105,7 +139,24 @@ class OrdersService {
       correlationId: `order-progress-${orderId}-${lineId}-${Date.now()}`
     });
 
-    return this.getOrderDetail({ orderId, actor });
+    const detail = await this.getOrderDetail({ orderId, actor });
+
+    if (this.ordersEventPublisher && typeof this.ordersEventPublisher.publishOrderProgress === 'function') {
+      try {
+        await this.ordersEventPublisher.publishOrderProgress({
+          orderDetail: detail,
+          actor,
+          reason: 'line_progress_updated'
+        });
+      } catch (error) {
+        logger.warn('orders.emqx.publish_failed', {
+          orderId,
+          message: error.message
+        });
+      }
+    }
+
+    return detail;
   }
 
   async cancelLine({ orderId, lineId, actor, io }) {
@@ -138,7 +189,25 @@ class OrdersService {
     });
 
     await this.recomputeAndPersistStatus({ orderId, io });
-    return this.getOrderDetail({ orderId, actor });
+
+    const detail = await this.getOrderDetail({ orderId, actor });
+
+    if (this.ordersEventPublisher && typeof this.ordersEventPublisher.publishOrderProgress === 'function') {
+      try {
+        await this.ordersEventPublisher.publishOrderProgress({
+          orderDetail: detail,
+          actor,
+          reason: 'line_canceled'
+        });
+      } catch (error) {
+        logger.warn('orders.emqx.publish_failed', {
+          orderId,
+          message: error.message
+        });
+      }
+    }
+
+    return detail;
   }
 
   async recomputeAndPersistStatus({ orderId, io }) {

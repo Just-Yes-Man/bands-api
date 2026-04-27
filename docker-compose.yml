@@ -8,7 +8,17 @@ services:
       - .env
     environment:
       DATABASE_URL: postgres://postgres:postgres@postgres:5432/conveyor
+      PGHOST: postgres
+      PGPORT: "5432"
+      PGDATABASE: conveyor
+      PGUSER: postgres
+      PGPASSWORD: postgres
       PGSSL: "false"
+      EMQX_ENABLED: "true"
+      EMQX_URL: mqtt://host.docker.internal:1883
+      EMQX_ORDERS_PROGRESS_TOPIC: pedidos/avances
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
       postgres:
         condition: service_healthy

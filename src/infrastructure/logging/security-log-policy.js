@@ -23,7 +23,25 @@ const redactOrderLogMeta = (meta = {}) => {
   return output;
 };
 
+const redactMeasurementLogMeta = (meta = {}) => {
+  const output = { ...meta };
+  if (output.authorization) {
+    output.authorization = '[REDACTED]';
+  }
+  if (output.token) {
+    output.token = '[REDACTED]';
+  }
+  if (output.idempotencyKey) {
+    output.idempotencyKey = '[REDACTED]';
+  }
+  if (output.correlationId) {
+    output.correlationId = '[REDACTED]';
+  }
+  return output;
+};
+
 module.exports = {
   redactAuthLogMeta,
-  redactOrderLogMeta
+  redactOrderLogMeta,
+  redactMeasurementLogMeta
 };

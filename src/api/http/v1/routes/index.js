@@ -10,6 +10,7 @@ const { rbac } = require('../middlewares/rbac');
 const { clientAuthRoutes } = require('./client-auth-routes');
 const { protectedRoutes } = require('./protected-routes');
 const { ordersRoutes } = require('./orders.routes');
+const { measurementProcessRoutes } = require('./measurement-process.routes');
 
 const router = express.Router();
 
@@ -17,6 +18,7 @@ router.get('/health', healthController);
 router.use('/auth', clientAuthRoutes);
 router.use('/protected', protectedRoutes);
 router.use('/', ordersRoutes);
+router.use('/', measurementProcessRoutes);
 router.get('/product-models', authJwt, listProductModels);
 router.post('/product-models', authJwt, rbac('admin'), createProductModel);
 router.post('/checkpoints', authJwt, rbac('operator', 'supervisor', 'admin'), createCheckpoint);
