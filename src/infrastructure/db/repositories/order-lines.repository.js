@@ -1,4 +1,4 @@
-const { pool } = require('../postgres');
+const { pool } = require("../postgres");
 
 class OrderLinesRepository {
   async createMany({ orderId, lineas }) {
@@ -8,7 +8,7 @@ class OrderLinesRepository {
         `INSERT INTO lineas_pedido(pedido_id, modelo_producto_id, cantidad, procesadas, rechazadas, estado_linea, version)
          VALUES ($1, $2, $3, 0, 0, 'ACTIVA', 0)
          RETURNING id, pedido_id, modelo_producto_id, cantidad, procesadas, rechazadas, estado_linea, version, created_at, updated_at`,
-        [orderId, linea.modeloProductoId, linea.cantidad]
+        [orderId, linea.modeloProductoId, linea.cantidad],
       );
       created.push(result.rows[0]);
     }
@@ -21,7 +21,7 @@ class OrderLinesRepository {
        FROM lineas_pedido
        WHERE pedido_id = $1
        ORDER BY id ASC`,
-      [orderId]
+      [orderId],
     );
     return result.rows;
   }
@@ -30,12 +30,17 @@ class OrderLinesRepository {
     const result = await pool.query(
       `SELECT id, pedido_id, modelo_producto_id, cantidad, procesadas, rechazadas, estado_linea, version, created_at, updated_at
        FROM lineas_pedido WHERE id = $1 LIMIT 1`,
-      [lineId]
+      [lineId],
     );
     return result.rows[0] || null;
   }
 
-  async updateProgress({ lineId, deltaProcesadas, deltaRechazadas, expectedVersion }) {
+  async updateProgress({
+    lineId,
+    deltaProcesadas,
+    deltaRechazadas,
+    expectedVersion,
+  }) {
     const result = await pool.query(
       `UPDATE lineas_pedido
        SET procesadas = procesadas + $2,
@@ -48,7 +53,7 @@ class OrderLinesRepository {
            END
        WHERE id = $1 AND version = $4 AND estado_linea != 'CANCELADA'
        RETURNING id, pedido_id, modelo_producto_id, cantidad, procesadas, rechazadas, estado_linea, version, created_at, updated_at`,
-      [lineId, deltaProcesadas, deltaRechazadas, expectedVersion]
+      [lineId, deltaProcesadas, deltaRechazadas, expectedVersion],
     );
     return result.rows[0] || null;
   }
@@ -59,7 +64,7 @@ class OrderLinesRepository {
        SET estado_linea = 'CANCELADA', updated_at = now(), version = version + 1
        WHERE id = $1 AND estado_linea != 'CANCELADA'
        RETURNING id, pedido_id, modelo_producto_id, cantidad, procesadas, rechazadas, estado_linea, version, created_at, updated_at`,
-      [lineId]
+      [lineId],
     );
     return result.rows[0] || null;
   }
@@ -79,7 +84,7 @@ class OrderLinesRepository {
          AND estado_linea = 'ACTIVA'
          AND (procesadas + rechazadas + $2 + $3) <= cantidad
        RETURNING id, pedido_id, modelo_producto_id, cantidad, procesadas, rechazadas, estado_linea, version, created_at, updated_at`,
-      [lineId, deltaProcesadas, deltaRechazadas]
+      [lineId, deltaProcesadas, deltaRechazadas],
     );
 
     return result.rows[0] || null;
@@ -87,5 +92,5 @@ class OrderLinesRepository {
 }
 
 module.exports = {
-  OrderLinesRepository
+  OrderLinesRepository,
 };
