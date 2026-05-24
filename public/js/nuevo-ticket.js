@@ -16,6 +16,7 @@ const ui = {
   deltaRechazadas: document.querySelector("#deltaRechazadas"),
   version: document.querySelector("#version"),
   autoStatus: document.querySelector("#autoStatus"),
+  progressLog: document.querySelector("#progressLog"),
   orderProgress: document.querySelector("#orderProgress"),
   lineProgress: document.querySelector("#lineProgress"),
   measurementList: document.querySelector("#measurementList"),
@@ -30,6 +31,16 @@ let tracking = {
   orderStatus: null,
 };
 let refreshTimer = null;
+let refreshInFlight = false;
+let refreshPending = false;
+let refreshNeedsMeasurements = false;
+let refreshOrderRequestId = 0;
+let refreshMeasurementsRequestId = 0;
+let lastOrderProgressSnapshot = null;
+const MAX_PROGRESS_LOG_ENTRIES = 40;
+const REFRESH_MIN_INTERVAL_MS = 120;
+let progressLogEntries = [];
+let lastProgressLogSignature = null;
 
 const getToken = () => localStorage.getItem(TOKEN_KEY) || "";
 const setToken = (token) => localStorage.setItem(TOKEN_KEY, token);
@@ -84,6 +95,44 @@ const setAutoStatus = (message) => {
   ui.autoStatus.textContent = message;
 };
 
+const formatLogTime = (isoDate) => {
+  const date = isoDate ? new Date(isoDate) : new Date();
+  if (Number.isNaN(date.getTime())) {
+    return "--:--:--";
+  }
+  return date.toLocaleTimeString("es-MX", { hour12: false });
+};
+
+const resetProgressLog = (initialMessage = "Sin eventos de avance.") => {
+  progressLogEntries = [];
+  lastProgressLogSignature = null;
+  lastOrderProgressSnapshot = null;
+  if (ui.progressLog) {
+    ui.progressLog.textContent = initialMessage;
+  }
+};
+
+const addProgressLog = (message, { occurredAt, signature } = {}) => {
+  if (!ui.progressLog || !message) {
+    return;
+  }
+
+  const line = `[${formatLogTime(occurredAt)}] ${message}`;
+  const entrySignature = signature || line;
+  if (entrySignature === lastProgressLogSignature) {
+    return;
+  }
+  lastProgressLogSignature = entrySignature;
+
+  progressLogEntries.push(line);
+  if (progressLogEntries.length > MAX_PROGRESS_LOG_ENTRIES) {
+    progressLogEntries.shift();
+  }
+
+  ui.progressLog.textContent = progressLogEntries.join("\n");
+  ui.progressLog.scrollTop = ui.progressLog.scrollHeight;
+};
+
 const connectRealtime = () => {
   const token = getToken();
   if (!token || typeof io === "undefined") {
@@ -103,6 +152,50 @@ const connectRealtime = () => {
   bindRealtimeHandlers();
 };
 
+const scheduleRefresh = (includeMeasurements = false) => {
+  if (includeMeasurements) {
+    refreshNeedsMeasurements = true;
+  }
+
+  if (refreshInFlight) {
+    refreshPending = true;
+    return;
+  }
+
+  if (refreshTimer) {
+    return;
+  }
+
+  refreshTimer = setTimeout(() => {
+    refreshTimer = null;
+    runRefreshCycle();
+  }, REFRESH_MIN_INTERVAL_MS);
+};
+
+const runRefreshCycle = async () => {
+  if (refreshInFlight) {
+    refreshPending = true;
+    return;
+  }
+
+  const includeMeasurements = refreshNeedsMeasurements;
+  refreshNeedsMeasurements = false;
+  refreshInFlight = true;
+
+  try {
+    await refreshOrderDetail();
+    if (includeMeasurements) {
+      await refreshMeasurements();
+    }
+  } finally {
+    refreshInFlight = false;
+    if (refreshPending || refreshNeedsMeasurements) {
+      refreshPending = false;
+      scheduleRefresh(refreshNeedsMeasurements);
+    }
+  }
+};
+
 const bindRealtimeHandlers = () => {
   if (!socket || socketBound) {
     return;
@@ -112,10 +205,12 @@ const bindRealtimeHandlers = () => {
 
   socket.on("connect", () => {
     setAutoStatus("Seguimiento activo. Esperando eventos...");
+    addProgressLog("Conectado al canal realtime.");
   });
 
   socket.on("connect_error", (error) => {
     setAutoStatus(`Realtime error: ${error.message}`);
+    addProgressLog(`Error realtime: ${error.message}`);
   });
 
   socket.on("order.summary.updated.v1", (payload) => {
@@ -124,6 +219,13 @@ const bindRealtimeHandlers = () => {
       Number(payload.orderId) === Number(tracking.orderId)
     ) {
       renderOrderProgress(payload);
+      addProgressLog(
+        `Resumen realtime: avance ${payload.porcentajeAvance}% (procesadas=${payload.totalProcesadas}, rechazadas=${payload.totalRechazadas}, canceladas=${payload.totalCanceladas}).`,
+        {
+          signature: `summary-${payload.orderId}-${payload.porcentajeAvance}-${payload.totalProcesadas}-${payload.totalRechazadas}-${payload.totalCanceladas}`,
+        },
+      );
+      scheduleRefresh();
     }
   });
 
@@ -132,31 +234,118 @@ const bindRealtimeHandlers = () => {
       tracking.orderId &&
       Number(payload.orderId) === Number(tracking.orderId)
     ) {
+      addProgressLog(
+        `Linea #${payload.lineId}: +${payload.deltaProcesadas} procesadas, +${payload.deltaRechazadas} rechazadas (pedido=${payload.estadoPedido}).`,
+        {
+          occurredAt: payload.occurredAt,
+          signature:
+            payload.correlationId ||
+            `order-progress-${payload.orderId}-${payload.lineId}-${payload.occurredAt || Date.now()}`,
+        },
+      );
       scheduleRefresh();
     }
   });
 
   socket.on("measurement.recorded.v1", (payload) => {
+    if (!tracking.orderId) {
+      return;
+    }
+
     if (
       tracking.processId &&
-      Number(payload.processId) === Number(tracking.processId)
+      Number(payload.processId) !== Number(tracking.processId)
     ) {
+      return;
+    }
+
+    if (!tracking.processId) {
+      addProgressLog(
+        `Medicion recibida en proceso #${payload.processId}. Sincronizando...`,
+        {
+          occurredAt: payload.capturedAt,
+          signature: `measurement-recorded-pending-${payload.processId}-${payload.measurementId}`,
+        },
+      );
+      scheduleRefresh(true);
+      return;
+    }
+
+    addProgressLog(`Medicion #${payload.measurementId}: ${payload.result}.`, {
+      occurredAt: payload.capturedAt,
+      signature: `measurement-recorded-${payload.processId}-${payload.measurementId}`,
+    });
+    scheduleRefresh(true);
+  });
+
+  socket.on("measurement.progress.applied.v1", (payload) => {
+    if (
+      tracking.orderId &&
+      Number(payload.orderId) === Number(tracking.orderId) &&
+      (payload.lineId === null ||
+        Number(payload.lineId) === Number(tracking.lineId))
+    ) {
+      addProgressLog(
+        `Aplicado desde medicion #${payload.measurementId}: +${payload.deltaProcesadas} procesadas, +${payload.deltaRechazadas} rechazadas.`,
+        {
+          occurredAt: payload.occurredAt,
+          signature:
+            payload.correlationId ||
+            `measurement-progress-${payload.processId}-${payload.measurementId}`,
+        },
+      );
       scheduleRefresh(true);
     }
   });
-};
 
-const scheduleRefresh = (includeMeasurements = false) => {
-  if (refreshTimer) {
-    clearTimeout(refreshTimer);
-  }
-
-  refreshTimer = setTimeout(() => {
-    refreshOrderDetail();
-    if (includeMeasurements) {
-      refreshMeasurements();
+  socket.on("measurement.process.started.v1", (payload) => {
+    if (
+      tracking.orderId &&
+      Number(payload.orderId) === Number(tracking.orderId) &&
+      (payload.lineId === null ||
+        Number(payload.lineId) === Number(tracking.lineId))
+    ) {
+      tracking.processId = Number(payload.processId);
+      addProgressLog(`Proceso de medicion iniciado (#${payload.processId}).`, {
+        occurredAt: payload.startedAt,
+        signature: `measurement-process-started-${payload.processId}`,
+      });
+      scheduleRefresh(true);
     }
-  }, 400);
+  });
+
+  socket.on("measurement.process.state.changed.v1", (payload) => {
+    if (!tracking.orderId) {
+      return;
+    }
+
+    const hasProcessMatch =
+      tracking.processId &&
+      Number(payload.processId) === Number(tracking.processId);
+    const hasOrderLineMatch =
+      Number(payload.orderId) === Number(tracking.orderId) &&
+      (payload.lineId === null ||
+        Number(payload.lineId) === Number(tracking.lineId));
+
+    if (!hasProcessMatch && !hasOrderLineMatch) {
+      return;
+    }
+
+    if (!tracking.processId && Number.isFinite(Number(payload.processId))) {
+      tracking.processId = Number(payload.processId);
+    }
+
+    addProgressLog(
+      `Proceso #${payload.processId}: ${payload.previousState || "-"} -> ${payload.currentState}.`,
+      {
+        occurredAt: payload.occurredAt,
+        signature:
+          payload.correlationId ||
+          `measurement-process-state-${payload.processId}-${payload.occurredAt || Date.now()}`,
+      },
+    );
+    scheduleRefresh(true);
+  });
 };
 
 const renderOrderProgress = (progress) => {
@@ -168,15 +357,21 @@ const renderOrderProgress = (progress) => {
     ? `Estado: ${tracking.orderStatus}`
     : "Estado: -";
 
+  const mergedProgress = {
+    ...(lastOrderProgressSnapshot || {}),
+    ...(progress || {}),
+  };
+  lastOrderProgressSnapshot = mergedProgress;
+
   ui.orderProgress.textContent = [
     status,
-    `Lineas: ${progress.totalLineas}`,
-    `Solicitadas: ${progress.totalSolicitadas}`,
-    `Procesadas: ${progress.totalProcesadas}`,
-    `Rechazadas: ${progress.totalRechazadas}`,
-    `Canceladas: ${progress.totalCanceladas}`,
-    `Restantes: ${progress.totalRestantes}`,
-    `Avance: ${progress.porcentajeAvance}%`,
+    `Lineas: ${mergedProgress.totalLineas ?? "-"}`,
+    `Solicitadas: ${mergedProgress.totalSolicitadas ?? "-"}`,
+    `Procesadas: ${mergedProgress.totalProcesadas ?? "-"}`,
+    `Rechazadas: ${mergedProgress.totalRechazadas ?? "-"}`,
+    `Canceladas: ${mergedProgress.totalCanceladas ?? "-"}`,
+    `Restantes: ${mergedProgress.totalRestantes ?? "-"}`,
+    `Avance: ${mergedProgress.porcentajeAvance ?? "-"}%`,
   ].join("\n");
 };
 
@@ -241,11 +436,15 @@ const refreshOrderDetail = async () => {
   }
 
   try {
+    const requestId = ++refreshOrderRequestId;
     const data = await api(
       `/api/v1/orders/${tracking.orderId}`,
       { method: "GET" },
       true,
     );
+    if (requestId !== refreshOrderRequestId) {
+      return;
+    }
     const progress = data?.data?.progress;
     tracking.orderStatus = data?.data?.order?.estado || null;
     if (progress) {
@@ -257,6 +456,18 @@ const refreshOrderDetail = async () => {
       (item) => Number(item.id) === Number(tracking.lineId),
     );
     renderLineProgress(linea);
+
+    if (progress) {
+      const lineaLabel = linea
+        ? `L${linea.id}: p=${linea.procesadas}, r=${linea.rechazadas}, v=${linea.version}, e=${linea.estadoLinea}`
+        : "sin_linea";
+      addProgressLog(
+        `Snapshot: avance ${progress.porcentajeAvance}% (proc=${progress.totalProcesadas}, rech=${progress.totalRechazadas}, rest=${progress.totalRestantes}) estado=${tracking.orderStatus || "-"}.`,
+        {
+          signature: `snapshot-${tracking.orderId}-${tracking.orderStatus || "-"}-${progress.porcentajeAvance}-${progress.totalProcesadas}-${progress.totalRechazadas}-${progress.totalRestantes}-${lineaLabel}`,
+        },
+      );
+    }
 
     if (linea && typeof linea.version !== "undefined") {
       ui.version.value = String(linea.version);
@@ -272,21 +483,38 @@ const refreshMeasurements = async () => {
   }
 
   try {
+    const requestId = ++refreshMeasurementsRequestId;
     const list = await api(
       `/api/v1/orders/${tracking.orderId}/measurement-processes`,
       { method: "GET" },
       true,
     );
+    if (requestId !== refreshMeasurementsRequestId) {
+      return;
+    }
     const processes = list?.data || [];
     const matched = processes.find(
       (process) => Number(process.lineaPedidoId) === Number(tracking.lineId),
     );
     if (!matched) {
+      if (tracking.processId) {
+        addProgressLog(
+          `Proceso de medicion #${tracking.processId} ya no disponible para la linea seleccionada.`,
+          {
+            signature: `measurement-process-missing-${tracking.orderId}-${tracking.lineId}-${tracking.processId}`,
+          },
+        );
+      }
       tracking.processId = null;
       renderMeasurements([]);
       return;
     }
 
+    if (Number(tracking.processId) !== Number(matched.id)) {
+      addProgressLog(`Proceso de medicion asociado: #${matched.id}.`, {
+        signature: `measurement-process-linked-${matched.id}`,
+      });
+    }
     tracking.processId = matched.id;
     const detail = await api(
       `/api/v1/measurement-processes/${matched.id}`,
@@ -321,6 +549,15 @@ const startAutoTracking = async () => {
   }
 
   tracking = { orderId, lineId, processId: null, orderStatus: null };
+  resetProgressLog(
+    `Seguimiento iniciado para pedido #${orderId}, linea #${lineId}.`,
+  );
+  addProgressLog(
+    `Seguimiento activo para pedido #${orderId}, linea #${lineId}.`,
+    {
+      signature: `tracking-start-${orderId}-${lineId}`,
+    },
+  );
   setAutoStatus(
     `Seguimiento activo para pedido #${orderId}, linea #${lineId}.`,
   );
@@ -426,6 +663,30 @@ document
 
 document.querySelector("#btnLogout").addEventListener("click", () => {
   clearToken();
+  if (refreshTimer) {
+    clearTimeout(refreshTimer);
+    refreshTimer = null;
+  }
+  refreshInFlight = false;
+  refreshPending = false;
+  refreshNeedsMeasurements = false;
+  if (socket) {
+    socket.disconnect();
+    socket = null;
+  }
+  socketBound = false;
+  tracking = { orderId: null, lineId: null, processId: null, orderStatus: null };
+  resetProgressLog();
+  if (ui.orderProgress) {
+    ui.orderProgress.textContent = "-";
+  }
+  if (ui.lineProgress) {
+    ui.lineProgress.textContent = "-";
+  }
+  if (ui.measurementList) {
+    ui.measurementList.innerHTML = "<small>Sin mediciones.</small>";
+  }
+  setAutoStatus("Sin seguimiento activo.");
   setEstado("Sesion cerrada.", "Token eliminado de localStorage.");
 });
 
