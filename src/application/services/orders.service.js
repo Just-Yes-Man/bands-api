@@ -191,6 +191,72 @@ class OrdersService {
     return detail;
   }
 
+  async applyExternalLineProgress({
+    orderId,
+    lineId,
+    deltaProcesadas,
+    deltaRechazadas,
+    io,
+    source,
+  }) {
+    const order = await this.ordersRepository.getById(orderId);
+    if (!order) {
+      return { ok: false, reason: "order_not_found" };
+    }
+
+    if (order.estado === ORDER_STATUS.CANCELADO) {
+      return { ok: false, reason: "order_canceled" };
+    }
+
+    const line = await this.orderLinesRepository.getById(lineId);
+    if (!line || Number(line.pedido_id) !== Number(orderId)) {
+      return { ok: false, reason: "line_not_found" };
+    }
+
+    const updatedLine =
+      await this.orderLinesRepository.applyMeasurementProgress({
+        lineId,
+        deltaProcesadas,
+        deltaRechazadas,
+      });
+
+    if (!updatedLine) {
+      return { ok: false, reason: "progress_blocked" };
+    }
+
+    await this.orderStateEventsRepository.record({
+      orderId,
+      lineId,
+      eventType: "LINE_PROGRESS",
+      actorType: "SYSTEM",
+      actorId: source || "emqx",
+      payload: { deltaProcesadas, deltaRechazadas, source: source || "emqx" },
+    });
+
+    await this.recomputeAndPersistStatus({ orderId, io });
+
+    const updatedOrder = await this.ordersRepository.getById(orderId);
+    await this.orderRealtimeService.emitCritical(
+      io,
+      "order.progress.updated.v1",
+      {
+        orderId,
+        lineId,
+        deltaProcesadas,
+        deltaRechazadas,
+        estadoPedido: updatedOrder.estado,
+        occurredAt: new Date().toISOString(),
+        correlationId: `order-progress-${orderId}-${lineId}-${Date.now()}`,
+      },
+    );
+
+    return {
+      ok: true,
+      order: this.mapOrder(updatedOrder),
+      line: this.mapLine(updatedLine),
+    };
+  }
+
   async publishOrderProgress({ orderId, actor, reason }) {
     if (
       !this.ordersEventPublisher ||
@@ -259,6 +325,57 @@ class OrdersService {
           orderDetail: detail,
           actor,
           reason: "line_canceled",
+        });
+      } catch (error) {
+        logger.warn("orders.emqx.publish_failed", {
+          orderId,
+          message: error.message,
+        });
+      }
+    }
+
+    return detail;
+  }
+
+  async cancelOrder({ orderId, actor, io }) {
+    const order = await this.ordersRepository.getById(orderId);
+    if (!order) {
+      throw asOrderError("ORDER_NOT_FOUND");
+    }
+
+    this.assertOrderMutationAccess({ actor, order });
+
+    if (order.estado === ORDER_STATUS.CANCELADO) {
+      return this.getOrderDetail({ orderId, actor });
+    }
+
+    if (order.estado === ORDER_STATUS.COMPLETADO) {
+      throw asOrderError("ORDER_COMPLETED");
+    }
+
+    await this.orderLinesRepository.cancelByOrder({ orderId });
+
+    await this.orderStateEventsRepository.record({
+      orderId,
+      eventType: "ORDER_CANCELED",
+      actorType: actor && actor.role ? "USER" : "SYSTEM",
+      actorId: actor && actor.sub ? String(actor.sub) : "system",
+      payload: {},
+    });
+
+    await this.recomputeAndPersistStatus({ orderId, io });
+
+    const detail = await this.getOrderDetail({ orderId, actor });
+
+    if (
+      this.ordersEventPublisher &&
+      typeof this.ordersEventPublisher.publishOrderProgress === "function"
+    ) {
+      try {
+        await this.ordersEventPublisher.publishOrderProgress({
+          orderDetail: detail,
+          actor,
+          reason: "order_canceled",
         });
       } catch (error) {
         logger.warn("orders.emqx.publish_failed", {

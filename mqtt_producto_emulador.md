@@ -4,10 +4,11 @@ Script: `mqtt_producto_emulador.py`
 
 ## ¿Qué hace?
 
-- Escucha eventos de pedidos en los topics:
+- Escucha eventos de pedidos en el topic:
   - `pedidos/creacion` (ej. `pedido.creado`)
+- Publica avances de linea en:
   - `pedidos/avances` (ej. `pedido.avance`)
-- Publica una respuesta con mediciones inventadas en:
+- Publica una medicion por linea en:
   - `productos/mediciones`
 
 ## Requisitos
@@ -28,6 +29,8 @@ También soporta variables de entorno:
 - `MQTT_PORT`
 - `MQTT_USERNAME`
 - `MQTT_PASSWORD`
+- `SIM_PROGRESS_DELAY_SEC`
+- `SIM_STAGE_DELAY_SEC`
 
 ## Ejemplo de pedido entrante
 

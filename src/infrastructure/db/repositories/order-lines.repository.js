@@ -69,6 +69,17 @@ class OrderLinesRepository {
     return result.rows[0] || null;
   }
 
+  async cancelByOrder({ orderId }) {
+    const result = await pool.query(
+      `UPDATE lineas_pedido
+       SET estado_linea = 'CANCELADA', updated_at = now(), version = version + 1
+       WHERE pedido_id = $1 AND estado_linea != 'CANCELADA'
+       RETURNING id, pedido_id, modelo_producto_id, cantidad, procesadas, rechazadas, estado_linea, version, created_at, updated_at`,
+      [orderId],
+    );
+    return result.rows;
+  }
+
   async applyMeasurementProgress({ lineId, deltaProcesadas, deltaRechazadas }) {
     const result = await pool.query(
       `UPDATE lineas_pedido

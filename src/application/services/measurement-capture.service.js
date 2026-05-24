@@ -39,6 +39,7 @@ class MeasurementCaptureService {
     alturaOk,
     actor,
     io,
+    applyProgress = true,
   }) {
     const process =
       await this.measurementProcessesRepository.getById(processId);
@@ -118,37 +119,39 @@ class MeasurementCaptureService {
     let deltaProcesadas = 0;
     let deltaRechazadas = 0;
 
-    if (process.linea_pedido_id && resultadoFinal === "APROBADA") {
-      deltaProcesadas = 1;
-    } else if (process.linea_pedido_id && resultadoFinal === "RECHAZADA") {
-      deltaRechazadas = 1;
-    }
-
-    if (
-      process.linea_pedido_id &&
-      (deltaProcesadas > 0 || deltaRechazadas > 0)
-    ) {
-      const updatedLine =
-        await this.orderLinesRepository.applyMeasurementProgress({
-          lineId: Number(process.linea_pedido_id),
-          deltaProcesadas,
-          deltaRechazadas,
-        });
-
-      if (!updatedLine) {
-        throw asMeasurementError("PROCESS_ORDER_BLOCKED");
+    if (applyProgress) {
+      if (process.linea_pedido_id && resultadoFinal === "APROBADA") {
+        deltaProcesadas = 1;
+      } else if (process.linea_pedido_id && resultadoFinal === "RECHAZADA") {
+        deltaRechazadas = 1;
       }
 
-      await this.ordersService.recomputeAndPersistStatus({
-        orderId: Number(process.pedido_id),
-        io,
-      });
+      if (
+        process.linea_pedido_id &&
+        (deltaProcesadas > 0 || deltaRechazadas > 0)
+      ) {
+        const updatedLine =
+          await this.orderLinesRepository.applyMeasurementProgress({
+            lineId: Number(process.linea_pedido_id),
+            deltaProcesadas,
+            deltaRechazadas,
+          });
 
-      await this.ordersService.publishOrderProgress({
-        orderId: Number(process.pedido_id),
-        actor,
-        reason: "measurement_applied",
-      });
+        if (!updatedLine) {
+          throw asMeasurementError("PROCESS_ORDER_BLOCKED");
+        }
+
+        await this.ordersService.recomputeAndPersistStatus({
+          orderId: Number(process.pedido_id),
+          io,
+        });
+
+        await this.ordersService.publishOrderProgress({
+          orderId: Number(process.pedido_id),
+          actor,
+          reason: "measurement_applied",
+        });
+      }
     }
 
     this.measurementRealtimeService.emitInformative(

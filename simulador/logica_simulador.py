@@ -1,4 +1,4 @@
-"""Lógica base del simulador: parseo de pedidos y generación de mediciones sintéticas."""
+"""Lógica base del simulador: parseo de pedidos y generación de eventos sintéticos."""
 
 from __future__ import annotations
 
@@ -69,3 +69,93 @@ def build_mediciones(pedido: Dict[str, Any], origen_topic: str) -> Dict[str, Any
         mediciones["avance"] = avance
 
     return mediciones
+
+
+def extract_order_detail(pedido: Dict[str, Any]) -> Dict[str, Any]:
+    if not isinstance(pedido, dict):
+        return {"order_id": None, "lineas": []}
+
+    order = pedido.get("order") or pedido.get("pedido") or {}
+    if not isinstance(order, dict):
+        order = {}
+
+    order_id = (
+        order.get("id")
+        or pedido.get("pedidoId")
+        or pedido.get("pedido_id")
+        or pedido.get("id")
+    )
+
+    lineas = pedido.get("lineas") or order.get("lineas") or pedido.get("lines") or []
+    if not isinstance(lineas, list):
+        lineas = []
+
+    return {"order_id": order_id, "lineas": lineas}
+
+
+def normalize_line(linea: Dict[str, Any]) -> Dict[str, Any]:
+    if not isinstance(linea, dict):
+        return {"id": None, "modeloProductoId": None, "cantidad": 0}
+
+    return {
+        "id": linea.get("id") or linea.get("lineaPedidoId") or linea.get("linea_id"),
+        "modeloProductoId": linea.get("modeloProductoId")
+        or linea.get("modelo_producto_id")
+        or linea.get("productoId"),
+        "cantidad": int(linea.get("cantidad") or 0),
+    }
+
+
+def build_avance_event(
+    order_id: Any,
+    line_id: Any,
+    modelo_producto_id: Any,
+    delta_procesadas: int,
+    delta_rechazadas: int,
+    secuencia: int,
+    total: int,
+) -> Dict[str, Any]:
+    return {
+        "event": "pedido.avance",
+        "source": "emulador",
+        "occurredAt": now_iso(),
+        "pedidoId": order_id,
+        "lineaPedidoId": line_id,
+        "modeloProductoId": modelo_producto_id,
+        "deltaProcesadas": delta_procesadas,
+        "deltaRechazadas": delta_rechazadas,
+        "secuencia": secuencia,
+        "total": total,
+    }
+
+
+def build_measurement_event(
+    order_id: Any,
+    line_id: Any,
+    modelo_producto_id: Any,
+    origen_topic: str,
+) -> Dict[str, Any]:
+    base = build_mediciones(
+        {
+            "pedidoId": order_id,
+            "producto": {"productoId": modelo_producto_id},
+        },
+        origen_topic,
+    )
+
+    base.update(
+        {
+            "event": "producto.medicion",
+            "source": "emulador",
+            "pedidoId": order_id,
+            "lineaPedidoId": line_id,
+            "modeloProductoId": modelo_producto_id,
+            "idempotencyKey": f"mqtt-{order_id}-{line_id}",
+            "qrOk": True,
+            "pesoOk": True,
+            "colorOk": True,
+            "alturaOk": True,
+        }
+    )
+
+    return base

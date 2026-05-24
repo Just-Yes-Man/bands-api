@@ -2,13 +2,12 @@ const {
   buildContainer,
 } = require("../../../../infrastructure/config/container");
 
-const { cancelOrderLineUseCase } = buildContainer();
+const { cancelOrderUseCase } = buildContainer();
 
-const cancelOrderLineController = async (req, res) => {
+const cancelOrderController = async (req, res) => {
   try {
-    const data = await cancelOrderLineUseCase.execute({
+    const data = await cancelOrderUseCase.execute({
       orderId: Number(req.params.orderId),
-      lineId: Number(req.params.lineId),
       actor: req.user,
       io: req.app.get("io"),
     });
@@ -20,12 +19,12 @@ const cancelOrderLineController = async (req, res) => {
         ok: false,
         error: {
           code: error.code || "INTERNAL_ERROR",
-          message: error.message || "Error cancelando linea",
+          message: error.message || "Error cancelando pedido",
         },
       });
   }
 };
 
 module.exports = {
-  cancelOrderLineController,
+  cancelOrderController,
 };
