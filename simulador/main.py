@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 import random
 import signal
 import sys
@@ -17,6 +18,7 @@ from simulador.conexion_api_mqtt import (
     DEFAULT_USERNAME,
     build_client,
 )
+from simulador.ui_server import start_ui_server
 
 running = True
 
@@ -41,10 +43,16 @@ def parse_args() -> argparse.Namespace:
 def main() -> int:
     args = parse_args()
 
+    ui_host = os.getenv("SIM_UI_HOST", "0.0.0.0")
+    ui_port = int(os.getenv("SIM_UI_PORT", "5055"))
+
     signal.signal(signal.SIGINT, handle_signal)
     signal.signal(signal.SIGTERM, handle_signal)
 
     client = build_client(args.client_id, args.username, args.password)
+
+    start_ui_server(ui_host, ui_port)
+    print(f"[INFO] UI disponible en http://{ui_host}:{ui_port}")
 
     print(
         f"[INFO] Iniciando emulador MQTT en {args.broker}:{args.port} "

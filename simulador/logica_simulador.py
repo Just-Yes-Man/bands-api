@@ -114,8 +114,9 @@ def build_avance_event(
     delta_rechazadas: int,
     secuencia: int,
     total: int,
+    banda_id: str | None = None,
 ) -> Dict[str, Any]:
-    return {
+    payload = {
         "event": "pedido.avance",
         "source": "emulador",
         "occurredAt": now_iso(),
@@ -127,6 +128,9 @@ def build_avance_event(
         "secuencia": secuencia,
         "total": total,
     }
+    if banda_id:
+        payload["bandaId"] = banda_id
+    return payload
 
 
 def build_measurement_event(

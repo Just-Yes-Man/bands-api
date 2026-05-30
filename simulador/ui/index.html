@@ -1,0 +1,470 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Emulador - Ordenes en proceso</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&display=swap');
+
+    :root {
+      --ink: #0f1b2d;
+      --muted: #5c6b82;
+      --accent: #ff6f3c;
+      --accent-2: #36cfc9;
+      --panel: #ffffff;
+      --surface: #f5f7fb;
+      --shadow: 0 18px 50px rgba(15, 27, 45, 0.15);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: "Space Grotesk", "IBM Plex Sans", sans-serif;
+      color: var(--ink);
+      background: radial-gradient(circle at 10% 10%, #fff5ec 0%, #f5f7fb 45%, #edf7f7 100%);
+      min-height: 100vh;
+    }
+
+    header {
+      padding: 32px 6vw 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+
+    header h1 {
+      margin: 0;
+      font-size: clamp(24px, 3vw, 38px);
+      letter-spacing: -0.02em;
+    }
+
+    header .status {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 14px;
+      border-radius: 999px;
+      background: #eef2f7;
+      color: var(--muted);
+      font-weight: 500;
+    }
+
+    header .dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 999px;
+      background: #d5dde8;
+      box-shadow: 0 0 0 6px rgba(213, 221, 232, 0.4);
+    }
+
+    main {
+      display: grid;
+      grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.8fr);
+      gap: 24px;
+      padding: 12px 6vw 48px;
+    }
+
+    @media (max-width: 960px) {
+      main {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .panel {
+      background: var(--panel);
+      border-radius: 24px;
+      box-shadow: var(--shadow);
+      padding: 24px;
+    }
+
+    .panel h2 {
+      margin: 0 0 16px;
+      font-size: 18px;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: var(--muted);
+    }
+
+    .orders {
+      display: grid;
+      gap: 16px;
+    }
+
+    .order-card {
+      border-radius: 18px;
+      padding: 18px;
+      border: 1px solid #edf0f6;
+      background: linear-gradient(135deg, #ffffff 0%, #fbfbff 100%);
+      position: relative;
+      overflow: hidden;
+      animation: rise 0.4s ease;
+    }
+
+    .order-card::after {
+      content: "";
+      position: absolute;
+      inset: auto -20% -80% auto;
+      width: 160px;
+      height: 160px;
+      background: radial-gradient(circle, rgba(54, 207, 201, 0.24), transparent 60%);
+    }
+
+    .order-head {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+
+    .order-id {
+      font-weight: 700;
+    }
+
+    .badge {
+      font-size: 12px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: #fff1ea;
+      color: var(--accent);
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .line-list {
+      display: grid;
+      gap: 10px;
+    }
+
+    .line-item {
+      border-radius: 12px;
+      padding: 10px 12px;
+      background: #f6f8fc;
+      display: grid;
+      gap: 8px;
+    }
+
+    .line-meta {
+      display: flex;
+      justify-content: space-between;
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    .progress-track {
+      height: 8px;
+      border-radius: 999px;
+      background: #dfe6f0;
+      overflow: hidden;
+    }
+
+    .progress-bar {
+      height: 100%;
+      width: 0;
+      border-radius: 999px;
+      background: linear-gradient(90deg, var(--accent), var(--accent-2));
+      transition: width 0.35s ease;
+    }
+
+    .stages {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .stage-pill {
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      background: #e9eef6;
+      color: var(--muted);
+    }
+
+    .stage-pill.active {
+      background: #e7fbfa;
+      color: #13807a;
+    }
+
+    .activity {
+      max-height: 520px;
+      overflow: auto;
+      display: grid;
+      gap: 10px;
+    }
+
+    .activity-item {
+      padding: 10px 12px;
+      border-radius: 12px;
+      background: #f6f8fc;
+      font-size: 13px;
+      color: var(--muted);
+      display: grid;
+      gap: 4px;
+    }
+
+    .activity-item strong {
+      color: var(--ink);
+    }
+
+    @keyframes rise {
+      from {
+        opacity: 0;
+        transform: translateY(12px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>Emulador visual de pedidos</h1>
+      <p>Seguimiento en vivo de creacion, inspeccion y clasificacion.</p>
+    </div>
+    <div class="status" id="status">
+      <span class="dot" id="statusDot"></span>
+      <span id="statusText">Esperando eventos</span>
+    </div>
+  </header>
+
+  <main>
+    <section class="panel">
+      <h2>Pedidos activos</h2>
+      <div class="orders" id="orders"></div>
+    </section>
+
+    <section class="panel">
+      <h2>Actividad</h2>
+      <div class="activity" id="activity"></div>
+    </section>
+  </main>
+
+  <script>
+    const orders = new Map();
+    const activity = [];
+
+    const ordersEl = document.getElementById('orders');
+    const activityEl = document.getElementById('activity');
+    const statusText = document.getElementById('statusText');
+    const statusDot = document.getElementById('statusDot');
+
+    const setStatus = (text, ok) => {
+      statusText.textContent = text;
+      statusDot.style.background = ok ? '#36cfc9' : '#d5dde8';
+      statusDot.style.boxShadow = ok
+        ? '0 0 0 6px rgba(54, 207, 201, 0.25)'
+        : '0 0 0 6px rgba(213, 221, 232, 0.4)';
+    };
+
+    const pushActivity = (title, detail) => {
+      activity.unshift({ title, detail, ts: new Date().toLocaleTimeString() });
+      if (activity.length > 60) activity.pop();
+      renderActivity();
+    };
+
+    const ensureOrder = (orderId) => {
+      if (!orders.has(orderId)) {
+        orders.set(orderId, {
+          orderId,
+          created: false,
+          lines: new Map()
+        });
+      }
+      return orders.get(orderId);
+    };
+
+    const ensureLine = (order, line) => {
+      const lineId = String(line.id || line.lineaPedidoId || line.linea_id || 'linea');
+      if (!order.lines.has(lineId)) {
+        order.lines.set(lineId, {
+          id: lineId,
+          modeloProductoId: line.modeloProductoId || line.productoId || 'n/a',
+          cantidad: Number(line.cantidad || 0),
+          progress: 0,
+          bandProgress: {},
+          inspected: false,
+          classified: false
+        });
+      } else {
+        const existing = order.lines.get(lineId);
+        if (existing.cantidad === 0 && line.cantidad) {
+          existing.cantidad = Number(line.cantidad);
+        }
+      }
+      return order.lines.get(lineId);
+    };
+
+    const renderOrders = () => {
+      ordersEl.innerHTML = '';
+      const sorted = Array.from(orders.values()).sort((a, b) => (a.orderId || '').localeCompare(b.orderId || ''));
+      sorted.forEach((order) => {
+        const card = document.createElement('div');
+        card.className = 'order-card';
+
+        const head = document.createElement('div');
+        head.className = 'order-head';
+        head.innerHTML = `
+          <div class="order-id">Pedido: ${order.orderId || 'sin-id'}</div>
+          <span class="badge">${order.created ? 'en proceso' : 'nuevo'}</span>
+        `;
+
+        const stages = document.createElement('div');
+        stages.className = 'stages';
+        stages.innerHTML = `
+          <span class="stage-pill ${order.created ? 'active' : ''}">Creado</span>
+          <span class="stage-pill ${order.inspected ? 'active' : ''}">Inspeccion</span>
+          <span class="stage-pill ${order.classified ? 'active' : ''}">Clasificacion</span>
+        `;
+
+        const lineList = document.createElement('div');
+        lineList.className = 'line-list';
+
+        order.lines.forEach((line) => {
+          const lineItem = document.createElement('div');
+          lineItem.className = 'line-item';
+          const percent = line.cantidad ? Math.min(100, Math.round((line.progress / line.cantidad) * 100)) : 0;
+          lineItem.innerHTML = `
+            <div class="line-meta">
+              <span>Linea ${line.id} - Modelo ${line.modeloProductoId}</span>
+              <span>${line.progress}/${line.cantidad}</span>
+            </div>
+            <div class="progress-track">
+              <div class="progress-bar" style="width: ${percent}%"></div>
+            </div>
+            <div class="stages">
+              <span class="stage-pill ${line.inspected ? 'active' : ''}">Inspeccion</span>
+              <span class="stage-pill ${line.classified ? 'active' : ''}">Clasificacion</span>
+            </div>
+          `;
+          lineList.appendChild(lineItem);
+        });
+
+        card.appendChild(head);
+        card.appendChild(stages);
+        card.appendChild(lineList);
+        ordersEl.appendChild(card);
+      });
+
+      if (!sorted.length) {
+        ordersEl.innerHTML = '<div class="activity-item">Sin pedidos en curso.</div>';
+      }
+    };
+
+    const renderActivity = () => {
+      activityEl.innerHTML = '';
+      activity.forEach((item) => {
+        const entry = document.createElement('div');
+        entry.className = 'activity-item';
+        entry.innerHTML = `
+          <strong>${item.title}</strong>
+          <span>${item.detail}</span>
+          <span>${item.ts}</span>
+        `;
+        activityEl.appendChild(entry);
+      });
+
+      if (!activity.length) {
+        activityEl.innerHTML = '<div class="activity-item">Esperando actividad.</div>';
+      }
+    };
+
+    const handleEvent = (payload) => {
+      const event = payload.event;
+      const data = payload.data || {};
+      const orderId = data.orderId || data.pedidoId || data.order_id;
+      if (!orderId) return;
+
+      const order = ensureOrder(orderId);
+
+      if (event === 'pedido.creado') {
+        order.created = true;
+        (data.lineas || []).forEach((line) => ensureLine(order, line));
+        pushActivity('Pedido creado', `Orden ${orderId} recibida con ${order.lines.size} lineas.`);
+      }
+
+      if (event === 'pedido.inspeccionado') {
+        order.inspected = true;
+        const line = ensureLine(order, data);
+        line.inspected = true;
+        pushActivity('Inspeccion completa', `Linea ${line.id} de orden ${orderId} inspeccionada.`);
+      }
+
+      if (event === 'pedido.avance') {
+        const line = ensureLine(order, data);
+        if (!line.cantidad && data.total) {
+          line.cantidad = Number(data.total);
+        }
+        if (data.bandaId) {
+          const current = Number(line.bandProgress[data.bandaId] || 0);
+          const next = Number(data.secuencia || data.procesadas || current);
+          line.bandProgress[data.bandaId] = Math.max(current, next);
+          line.progress = Object.values(line.bandProgress).reduce((sum, value) => sum + Number(value || 0), 0);
+        } else {
+          line.progress = Number(data.secuencia || data.procesadas || line.progress);
+        }
+        const bandLabel = data.bandaId ? ` (${data.bandaId})` : '';
+        pushActivity('Avance', `Orden ${orderId} linea ${line.id}${bandLabel}: ${line.progress}/${line.cantidad}.`);
+      }
+
+      if (event === 'pedido.clasificado') {
+        const line = ensureLine(order, data);
+        line.classified = true;
+        order.classified = Array.from(order.lines.values()).every((l) => l.classified);
+        pushActivity('Clasificacion', `Orden ${orderId} linea ${line.id} clasificada.`);
+      }
+
+      order.inspected = Array.from(order.lines.values()).every((l) => l.inspected);
+
+      renderOrders();
+    };
+
+    const loadSnapshot = async () => {
+      setStatus('Cargando historial...', false);
+      try {
+        const res = await fetch('/snapshot');
+        if (!res.ok) {
+          throw new Error('Snapshot no disponible');
+        }
+        const data = await res.json();
+        (data.events || []).forEach((payload) => handleEvent(payload));
+        renderOrders();
+        renderActivity();
+      } catch (err) {
+        pushActivity('Snapshot', 'No se pudo cargar el historial.');
+      }
+    };
+
+    const startLiveStream = () => {
+      const source = new EventSource('/events');
+
+      source.addEventListener('message', (evt) => {
+        try {
+          const payload = JSON.parse(evt.data);
+          handleEvent(payload);
+          setStatus('En vivo', true);
+        } catch (err) {
+          setStatus('Error al parsear eventos', false);
+        }
+      });
+
+      source.addEventListener('error', () => {
+        setStatus('Conexion perdida, reintentando...', false);
+      });
+    };
+
+    renderOrders();
+    renderActivity();
+
+    loadSnapshot().finally(startLiveStream);
+  </script>
+</body>
+</html>

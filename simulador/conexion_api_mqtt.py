@@ -17,6 +17,7 @@ from simulador.logica_simulador import (
     normalize_line,
     parse_payload,
 )
+from simulador.ui_server import HUB
 
 DEFAULT_BROKER = os.getenv("MQTT_BROKER", "localhost")
 DEFAULT_PORT = int(os.getenv("MQTT_PORT", "1883"))
@@ -27,8 +28,17 @@ TOPIC_PEDIDOS_CREACION = "pedidos/creacion"
 TOPIC_PEDIDOS_AVANCES = "pedidos/avances"
 TOPIC_MEDICIONES = "productos/mediciones"
 
-PROGRESS_DELAY_SEC = float(os.getenv("SIM_PROGRESS_DELAY_SEC", "0.35"))
-STAGE_DELAY_SEC = float(os.getenv("SIM_STAGE_DELAY_SEC", "15"))
+PROGRESS_DELAY_SEC = float(os.getenv("SIM_PROGRESS_DELAY_SEC", "0.75"))
+STAGE_DELAY_SEC = float(os.getenv("SIM_STAGE_DELAY_SEC", "20"))
+BAND_COUNT = int(os.getenv("SIM_BAND_COUNT", "5"))
+
+
+def split_counts(total: int, bands: int) -> list[int]:
+    if bands <= 0:
+        return [total]
+    base = total // bands
+    remainder = total % bands
+    return [base + (1 if idx < remainder else 0) for idx in range(bands)]
 
 
 def on_connect(client: mqtt.Client, _userdata: Any, _flags: Dict[str, Any], rc: int):
@@ -55,6 +65,16 @@ def on_message(client: mqtt.Client, _userdata: Any, msg: mqtt.MQTTMessage):
     if not order_id or not lineas:
         print("[WARN] Pedido sin lineas para simular")
         return
+
+    if order_id and lineas:
+        normalized_lineas = [normalize_line(linea) for linea in lineas]
+        HUB.emit(
+            "pedido.creado",
+            {
+                "orderId": order_id,
+                "lineas": normalized_lineas,
+            },
+        )
 
     threading.Thread(
         target=simulate_order,
@@ -85,29 +105,76 @@ def simulate_order(client: mqtt.Client, order_id: Any, lineas: list[Dict[str, An
         medicion_result = client.publish(TOPIC_MEDICIONES, medicion_payload, qos=1)
         if medicion_result.rc == mqtt.MQTT_ERR_SUCCESS:
             print(f"[TX] {TOPIC_MEDICIONES} -> {medicion_payload}")
+            HUB.emit(
+                "pedido.inspeccionado",
+                {
+                    "orderId": order_id,
+                    "lineaPedidoId": line_id,
+                    "modeloProductoId": modelo_producto_id,
+                    "ok": True,
+                },
+            )
         else:
             print(f"[ERROR] Falló publicación ({medicion_result.rc})")
 
         time.sleep(STAGE_DELAY_SEC)
 
-        for idx in range(int(cantidad)):
-            avance = build_avance_event(
-                order_id,
-                line_id,
-                modelo_producto_id,
-                delta_procesadas=1,
-                delta_rechazadas=0,
-                secuencia=idx + 1,
-                total=int(cantidad),
-            )
-            avance_payload = json.dumps(avance, ensure_ascii=False)
-            avance_result = client.publish(TOPIC_PEDIDOS_AVANCES, avance_payload, qos=1)
-            if avance_result.rc == mqtt.MQTT_ERR_SUCCESS:
-                print(f"[TX] {TOPIC_PEDIDOS_AVANCES} -> {avance_payload}")
-            else:
-                print(f"[ERROR] Falló publicación ({avance_result.rc})")
+        band_counts = split_counts(int(cantidad), BAND_COUNT)
+        band_threads: list[threading.Thread] = []
 
-            time.sleep(PROGRESS_DELAY_SEC)
+        def run_band(band_index: int, band_total: int) -> None:
+            if band_total <= 0:
+                return
+            band_id = f"banda-{band_index + 1}"
+            for idx in range(band_total):
+                avance = build_avance_event(
+                    order_id,
+                    line_id,
+                    modelo_producto_id,
+                    delta_procesadas=1,
+                    delta_rechazadas=0,
+                    secuencia=idx + 1,
+                    total=int(cantidad),
+                    banda_id=band_id,
+                )
+                avance_payload = json.dumps(avance, ensure_ascii=False)
+                avance_result = client.publish(TOPIC_PEDIDOS_AVANCES, avance_payload, qos=1)
+                if avance_result.rc == mqtt.MQTT_ERR_SUCCESS:
+                    print(f"[TX] {TOPIC_PEDIDOS_AVANCES} -> {avance_payload}")
+                    HUB.emit(
+                        "pedido.avance",
+                        {
+                            "orderId": order_id,
+                            "lineaPedidoId": line_id,
+                            "modeloProductoId": modelo_producto_id,
+                            "secuencia": idx + 1,
+                            "total": int(cantidad),
+                            "bandaId": band_id,
+                        },
+                    )
+                else:
+                    print(f"[ERROR] Falló publicación ({avance_result.rc})")
+
+                time.sleep(PROGRESS_DELAY_SEC)
+
+        for band_index, band_total in enumerate(band_counts):
+            thread = threading.Thread(target=run_band, args=(band_index, band_total), daemon=True)
+            thread.start()
+            band_threads.append(thread)
+
+        for thread in band_threads:
+            thread.join()
+
+        HUB.emit(
+            "pedido.clasificado",
+            {
+                "orderId": order_id,
+                "lineaPedidoId": line_id,
+                "modeloProductoId": modelo_producto_id,
+                "total": int(cantidad),
+                "ok": True,
+            },
+        )
 
 
 def build_client(client_id: str, username: str | None, password: str | None) -> mqtt.Client:
