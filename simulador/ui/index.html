@@ -62,6 +62,54 @@
       box-shadow: 0 0 0 6px rgba(213, 221, 232, 0.4);
     }
 
+    .summary {
+      padding: 0 6vw 12px;
+    }
+
+    .summary-card {
+      background: linear-gradient(120deg, #ffffff 0%, #f3fbfb 100%);
+      border-radius: 24px;
+      box-shadow: var(--shadow);
+      padding: 18px 22px;
+      display: grid;
+      gap: 12px;
+    }
+
+    .summary-card h2 {
+      margin: 0;
+      font-size: 14px;
+      text-transform: uppercase;
+      letter-spacing: 0.14em;
+      color: var(--muted);
+    }
+
+    .summary-metrics {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 16px;
+    }
+
+    .summary-total {
+      font-size: 28px;
+      font-weight: 700;
+    }
+
+    .summary-progress {
+      height: 10px;
+      border-radius: 999px;
+      background: #dfe6f0;
+      overflow: hidden;
+    }
+
+    .summary-progress-bar {
+      height: 100%;
+      width: 0;
+      border-radius: 999px;
+      background: linear-gradient(90deg, var(--accent), var(--accent-2));
+      transition: width 0.4s ease;
+    }
+
     main {
       display: grid;
       grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.8fr);
@@ -212,6 +260,37 @@
       color: var(--ink);
     }
 
+    .band-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+      gap: 8px;
+    }
+
+    .band-item {
+      padding: 8px 10px;
+      border-radius: 10px;
+      background: #eef3fb;
+      font-size: 12px;
+      color: var(--muted);
+      display: grid;
+      gap: 6px;
+    }
+
+    .band-bar {
+      height: 6px;
+      border-radius: 999px;
+      background: #d4dce8;
+      overflow: hidden;
+    }
+
+    .band-fill {
+      height: 100%;
+      width: 0;
+      border-radius: 999px;
+      background: linear-gradient(90deg, #ff9a62, #36cfc9);
+      transition: width 0.35s ease;
+    }
+
     @keyframes rise {
       from {
         opacity: 0;
@@ -236,6 +315,21 @@
     </div>
   </header>
 
+  <section class="summary">
+    <div class="summary-card">
+      <div class="summary-metrics">
+        <div>
+          <h2>Progreso total</h2>
+          <div class="summary-total" id="totalProgressText">0/0</div>
+        </div>
+        <div class="badge">BANDAS ACTIVAS</div>
+      </div>
+      <div class="summary-progress">
+        <div class="summary-progress-bar" id="totalProgressBar"></div>
+      </div>
+    </div>
+  </section>
+
   <main>
     <section class="panel">
       <h2>Pedidos activos</h2>
@@ -251,11 +345,14 @@
   <script>
     const orders = new Map();
     const activity = [];
+    const BAND_COUNT = 5;
 
     const ordersEl = document.getElementById('orders');
     const activityEl = document.getElementById('activity');
     const statusText = document.getElementById('statusText');
     const statusDot = document.getElementById('statusDot');
+    const totalProgressText = document.getElementById('totalProgressText');
+    const totalProgressBar = document.getElementById('totalProgressBar');
 
     const setStatus = (text, ok) => {
       statusText.textContent = text;
@@ -299,8 +396,32 @@
         if (existing.cantidad === 0 && line.cantidad) {
           existing.cantidad = Number(line.cantidad);
         }
+        if (!existing.bandProgress) {
+          existing.bandProgress = {};
+        }
       }
       return order.lines.get(lineId);
+    };
+
+    const splitCounts = (total, bands) => {
+      if (!bands || total <= 0) return [];
+      const base = Math.floor(total / bands);
+      const remainder = total % bands;
+      return Array.from({ length: bands }, (_, idx) => base + (idx < remainder ? 1 : 0));
+    };
+
+    const renderSummary = () => {
+      let totalTarget = 0;
+      let totalProgress = 0;
+      orders.forEach((order) => {
+        order.lines.forEach((line) => {
+          totalTarget += Number(line.cantidad || 0);
+          totalProgress += Number(line.progress || 0);
+        });
+      });
+      const percent = totalTarget ? Math.min(100, Math.round((totalProgress / totalTarget) * 100)) : 0;
+      totalProgressText.textContent = `${totalProgress}/${totalTarget}`;
+      totalProgressBar.style.width = `${percent}%`;
     };
 
     const renderOrders = () => {
@@ -332,6 +453,26 @@
           const lineItem = document.createElement('div');
           lineItem.className = 'line-item';
           const percent = line.cantidad ? Math.min(100, Math.round((line.progress / line.cantidad) * 100)) : 0;
+          const targets = splitCounts(line.cantidad, BAND_COUNT);
+          const bandKeys = Object.keys(line.bandProgress || {});
+          const bands = bandKeys.length
+            ? bandKeys
+            : Array.from({ length: BAND_COUNT }, (_, idx) => `banda-${idx + 1}`);
+          const bandHtml = bands.map((bandId) => {
+            const index = Number((bandId || '').split('-')[1]) - 1;
+            const target = targets[index] || 0;
+            const current = Number((line.bandProgress || {})[bandId] || 0);
+            const bandPercent = target ? Math.min(100, Math.round((current / target) * 100)) : 0;
+            return `
+              <div class="band-item">
+                <div>${bandId.toUpperCase()}</div>
+                <div>${current}/${target}</div>
+                <div class="band-bar">
+                  <div class="band-fill" style="width: ${bandPercent}%"></div>
+                </div>
+              </div>
+            `;
+          }).join('');
           lineItem.innerHTML = `
             <div class="line-meta">
               <span>Linea ${line.id} - Modelo ${line.modeloProductoId}</span>
@@ -343,6 +484,9 @@
             <div class="stages">
               <span class="stage-pill ${line.inspected ? 'active' : ''}">Inspeccion</span>
               <span class="stage-pill ${line.classified ? 'active' : ''}">Clasificacion</span>
+            </div>
+            <div class="band-grid">
+              ${bandHtml}
             </div>
           `;
           lineList.appendChild(lineItem);
@@ -357,6 +501,8 @@
       if (!sorted.length) {
         ordersEl.innerHTML = '<div class="activity-item">Sin pedidos en curso.</div>';
       }
+
+      renderSummary();
     };
 
     const renderActivity = () => {
@@ -463,6 +609,7 @@
 
     renderOrders();
     renderActivity();
+    renderSummary();
 
     loadSnapshot().finally(startLiveStream);
   </script>
