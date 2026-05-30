@@ -1,0 +1,139 @@
+"""Servidor HTTP simple para exponer la UI del emulador y eventos SSE."""
+
+from __future__ import annotations
+
+import json
+import os
+import queue
+import threading
+import time
+from http import HTTPStatus
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
+from typing import Any
+
+UI_DIR = Path(__file__).resolve().parent / "ui"
+INDEX_PATH = UI_DIR / "index.html"
+
+
+class UiEventHub:
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._subscribers: set[queue.Queue] = set()
+        self._events: list[dict[str, Any]] = []
+        self._max_events = int(os.getenv("SIM_UI_MAX_EVENTS", "200"))
+
+    def subscribe(self) -> queue.Queue:
+        q: queue.Queue = queue.Queue()
+        with self._lock:
+            self._subscribers.add(q)
+        return q
+
+    def unsubscribe(self, q: queue.Queue) -> None:
+        with self._lock:
+            self._subscribers.discard(q)
+
+    def emit(self, event_type: str, payload: dict[str, Any]) -> None:
+        message = {
+            "event": event_type,
+            "data": payload,
+            "timestamp": time.time(),
+        }
+        with self._lock:
+            self._events.append(message)
+            if len(self._events) > self._max_events:
+                self._events = self._events[-self._max_events :]
+        with self._lock:
+            subscribers = list(self._subscribers)
+        for q in subscribers:
+            try:
+                q.put_nowait(message)
+            except queue.Full:
+                continue
+
+    def snapshot(self) -> dict[str, Any]:
+        with self._lock:
+            return {"events": list(self._events)}
+
+
+HUB = UiEventHub()
+
+
+class UiRequestHandler(BaseHTTPRequestHandler):
+    def log_message(self, format: str, *args: Any) -> None:
+        return
+
+    def do_GET(self) -> None:
+        if self.path in ("/", "/index.html"):
+            self._serve_index()
+            return
+
+        if self.path.startswith("/snapshot"):
+            self._serve_snapshot()
+            return
+
+        if self.path.startswith("/events"):
+            self._serve_events()
+            return
+
+        self.send_error(HTTPStatus.NOT_FOUND, "Not found")
+
+    def _serve_index(self) -> None:
+        if not INDEX_PATH.exists():
+            self.send_error(HTTPStatus.NOT_FOUND, "UI not found")
+            return
+
+        content = INDEX_PATH.read_bytes()
+        self.send_response(HTTPStatus.OK)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Length", str(len(content)))
+        self.end_headers()
+        self.wfile.write(content)
+
+    def _serve_events(self) -> None:
+        self.send_response(HTTPStatus.OK)
+        self.send_header("Content-Type", "text/event-stream")
+        self.send_header("Cache-Control", "no-cache")
+        self.send_header("Connection", "keep-alive")
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.end_headers()
+
+        q = HUB.subscribe()
+        try:
+            while True:
+                try:
+                    message = q.get(timeout=10)
+                except queue.Empty:
+                    self._send_raw(b": ping\n\n")
+                    continue
+
+                payload = json.dumps(message, ensure_ascii=False).encode("utf-8")
+                self._send_raw(b"event: message\n")
+                self._send_raw(b"data: " + payload + b"\n\n")
+        except (BrokenPipeError, ConnectionResetError):
+            pass
+        finally:
+            HUB.unsubscribe(q)
+
+    def _serve_snapshot(self) -> None:
+        payload = json.dumps(HUB.snapshot(), ensure_ascii=False).encode("utf-8")
+        self.send_response(HTTPStatus.OK)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Content-Length", str(len(payload)))
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.end_headers()
+        self.wfile.write(payload)
+
+    def _send_raw(self, data: bytes) -> None:
+        try:
+            self.wfile.write(data)
+            self.wfile.flush()
+        except (BrokenPipeError, ConnectionResetError):
+            raise
+
+
+def start_ui_server(host: str, port: int) -> ThreadingHTTPServer:
+    server = ThreadingHTTPServer((host, port), UiRequestHandler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    return server

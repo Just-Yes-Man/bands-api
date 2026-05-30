@@ -30,3 +30,18 @@ Variables de entorno soportadas:
 - `MQTT_PASSWORD`
 - `SIM_PROGRESS_DELAY_SEC`
 - `SIM_STAGE_DELAY_SEC`
+- `SIM_BAND_COUNT` (default: 5)
+- `SIM_UI_HOST` (default: 0.0.0.0)
+- `SIM_UI_PORT` (default: 5055)
+- `SIM_UI_MAX_EVENTS` (default: 200)
+
+## UI del emulador
+
+El emulador expone una UI web para visualizar la creacion, inspeccion y
+clasificacion de pedidos.
+
+URL por defecto:
+
+```
+http://localhost:5055
+```
