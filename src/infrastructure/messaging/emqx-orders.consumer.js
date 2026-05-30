@@ -47,6 +47,7 @@ class EmqxOrdersConsumer {
       const topics = [
         env.EMQX_ORDERS_PROGRESS_TOPIC || "pedidos/avances",
         env.EMQX_MEASUREMENTS_TOPIC || "productos/mediciones",
+        env.EMQX_BAND_ALERTS_TOPIC || "bandas/alertas",
       ];
 
       const qos = Number.isFinite(env.EMQX_QOS) ? env.EMQX_QOS : 1;
@@ -102,6 +103,11 @@ class EmqxOrdersConsumer {
 
     if (topic === (env.EMQX_MEASUREMENTS_TOPIC || "productos/mediciones")) {
       await this.handleMeasurement(payload);
+      return;
+    }
+
+    if (topic === (env.EMQX_BAND_ALERTS_TOPIC || "bandas/alertas")) {
+      this.handleBandAlert(payload);
     }
   }
 
@@ -204,6 +210,37 @@ class EmqxOrdersConsumer {
       io: this.io,
       applyProgress: false,
     });
+  }
+
+  handleBandAlert(payload) {
+    const event = payload.event || payload.evento;
+    if (
+      event !== "bandas.error" &&
+      event !== "bandas.error.resuelto"
+    ) {
+      return;
+    }
+
+    const realtimePayload = {
+      event,
+      errorId: payload.errorId || null,
+      codigo: payload.codigo || null,
+      estado: payload.estado || null,
+      severidad: payload.severidad || null,
+      mensaje: payload.mensaje || null,
+      afecta: payload.afecta || null,
+      pedidoId: this.asNumber(payload.pedidoId),
+      lineaPedidoId: this.asNumber(payload.lineaPedidoId),
+      occurredAt: payload.occurredAt || null,
+      resolvedAt: payload.resolvedAt || null,
+      resolvedBy: payload.resolvedBy || null,
+    };
+
+    if (this.io) {
+      this.io.of("/realtime/v1").emit("band.alert.updated.v1", realtimePayload);
+    }
+
+    logger.warn("emqx.consumer.band_alert", realtimePayload);
   }
 
   async resolveProcess({ orderId, lineId }) {

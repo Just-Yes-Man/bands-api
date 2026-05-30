@@ -28,6 +28,9 @@ const {
 const { OrdersService } = require("../../application/services/orders.service");
 const { EmqxOrdersPublisher } = require("../messaging/emqx-orders.publisher");
 const {
+  EmqxBandAlertsPublisher,
+} = require("../messaging/emqx-band-alerts.publisher");
+const {
   CreateOrderUseCase,
 } = require("../../application/use-cases/create-order.use-case");
 const {
@@ -97,6 +100,7 @@ const buildContainer = () => {
   const orderStateEventsRepository = new OrderStateEventsRepository();
   const orderRealtimeService = new OrderRealtimeService();
   const ordersEventPublisher = new EmqxOrdersPublisher();
+  const bandAlertsPublisher = new EmqxBandAlertsPublisher();
   const measurementProcessesRepository = new MeasurementProcessesRepository();
   const measurementProcessStateHistoryRepository =
     new MeasurementProcessStateHistoryRepository();
@@ -135,6 +139,7 @@ const buildContainer = () => {
     registerClientUseCase: new RegisterClientUseCase({ clientAuthService }),
     loginClientUseCase: new LoginClientUseCase({ clientAuthService }),
     clientJwtService,
+    bandAlertsPublisher,
     ordersService,
     createOrderUseCase: new CreateOrderUseCase({ ordersService }),
     listOrdersUseCase: new ListOrdersUseCase({ ordersService }),

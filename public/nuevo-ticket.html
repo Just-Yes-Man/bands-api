@@ -126,6 +126,50 @@
         background: #ef4444;
         color: #fff;
       }
+      .band-alert {
+        border-color: #475569;
+      }
+      .band-flow {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 8px;
+        margin: 12px 0;
+      }
+      .flow-step {
+        min-height: 74px;
+        border: 1px solid #334155;
+        background: #0b1220;
+        border-radius: 8px;
+        padding: 10px;
+      }
+      .flow-step strong {
+        display: block;
+        margin-bottom: 4px;
+      }
+      .band-state {
+        border: 1px solid #334155;
+        border-radius: 8px;
+        padding: 10px;
+        background: #020617;
+        white-space: pre-wrap;
+      }
+      .band-state.active {
+        border-color: #ef4444;
+        background: #2a0d12;
+      }
+      .band-state.resolved {
+        border-color: #22c55e;
+        background: #052e16;
+      }
+      button:disabled {
+        cursor: not-allowed;
+        opacity: 0.55;
+      }
+      @media (max-width: 760px) {
+        .band-flow {
+          grid-template-columns: 1fr;
+        }
+      }
     </style>
   </head>
   <body>
@@ -237,6 +281,35 @@
         <div id="lineProgress" class="metric">-</div>
         <label>Mediciones generadas</label>
         <div id="measurementList" class="metric">-</div>
+      </section>
+
+      <section class="card band-alert">
+        <h2>7) Alerta de bandas</h2>
+        <div class="band-flow">
+          <div class="flow-step">
+            <strong>1. Alerta</strong>
+            <small><code>bandas/alertas</code> detiene las bandas.</small>
+          </div>
+          <div class="flow-step">
+            <strong>2. API</strong>
+            <small>Realtime muestra la falla en este panel.</small>
+          </div>
+          <div class="flow-step">
+            <strong>3. Resolución</strong>
+            <small><code>bandas/errores/resolver</code> reanuda el emulador.</small>
+          </div>
+        </div>
+        <label>Estado operativo</label>
+        <div id="bandAlertState" class="band-state">Bandas operando.</div>
+        <label>Error ID</label>
+        <input id="bandAlertErrorId" placeholder="Se llena al recibir la alerta" />
+        <div class="inline">
+          <button id="btnResolveBandAlert" class="danger" disabled>
+            Resolver y reanudar bandas
+          </button>
+        </div>
+        <label>Payload de resolución</label>
+        <div id="bandAlertResolvePayload" class="metric">-</div>
       </section>
     </div>
     <script src="/socket.io/socket.io.js"></script>

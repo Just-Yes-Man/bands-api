@@ -10,13 +10,13 @@ import sys
 import time
 from typing import Any
 
-from simulador.conexion_api_mqtt import (
+from simulador.config import (
     DEFAULT_BROKER,
     DEFAULT_PASSWORD,
     DEFAULT_PORT,
     DEFAULT_USERNAME,
-    build_client,
 )
+from simulador.conexion_api_mqtt import build_client
 
 running = True
 

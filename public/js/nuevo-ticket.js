@@ -20,6 +20,10 @@ const ui = {
   orderProgress: document.querySelector("#orderProgress"),
   lineProgress: document.querySelector("#lineProgress"),
   measurementList: document.querySelector("#measurementList"),
+  bandAlertState: document.querySelector("#bandAlertState"),
+  bandAlertErrorId: document.querySelector("#bandAlertErrorId"),
+  bandAlertResolvePayload: document.querySelector("#bandAlertResolvePayload"),
+  btnResolveBandAlert: document.querySelector("#btnResolveBandAlert"),
 };
 
 let socket = null;
@@ -37,6 +41,7 @@ let refreshNeedsMeasurements = false;
 let refreshOrderRequestId = 0;
 let refreshMeasurementsRequestId = 0;
 let lastOrderProgressSnapshot = null;
+let activeBandAlert = null;
 const MAX_PROGRESS_LOG_ENTRIES = 40;
 const REFRESH_MIN_INTERVAL_MS = 120;
 let progressLogEntries = [];
@@ -131,6 +136,55 @@ const addProgressLog = (message, { occurredAt, signature } = {}) => {
 
   ui.progressLog.textContent = progressLogEntries.join("\n");
   ui.progressLog.scrollTop = ui.progressLog.scrollHeight;
+};
+
+const buildBandResolvePayload = () => ({
+  errorId: ui.bandAlertErrorId?.value.trim() || activeBandAlert?.errorId || null,
+  resolvedBy: "front",
+});
+
+const renderBandAlert = (alert = null) => {
+  if (!ui.bandAlertState) {
+    return;
+  }
+
+  const isActive = alert && alert.estado === "ACTIVO";
+  const isResolved = alert && alert.estado === "RESUELTO";
+  activeBandAlert = isActive ? alert : null;
+
+  ui.bandAlertState.classList.toggle("active", Boolean(isActive));
+  ui.bandAlertState.classList.toggle("resolved", Boolean(isResolved));
+
+  if (!alert) {
+    ui.bandAlertState.textContent = "Bandas operando.";
+  } else {
+    ui.bandAlertState.textContent = [
+      `Evento: ${alert.event || "-"}`,
+      `Estado: ${alert.estado || "-"}`,
+      `Severidad: ${alert.severidad || "-"}`,
+      `Codigo: ${alert.codigo || "-"}`,
+      `Mensaje: ${alert.mensaje || "-"}`,
+      `Pedido: ${alert.pedidoId || "-"}`,
+      `Linea: ${alert.lineaPedidoId || "-"}`,
+      `Error ID: ${alert.errorId || "-"}`,
+    ].join("\n");
+  }
+
+  if (ui.bandAlertErrorId && alert?.errorId) {
+    ui.bandAlertErrorId.value = alert.errorId;
+  }
+
+  if (ui.btnResolveBandAlert) {
+    ui.btnResolveBandAlert.disabled = !isActive;
+  }
+
+  if (ui.bandAlertResolvePayload) {
+    ui.bandAlertResolvePayload.textContent = JSON.stringify(
+      buildBandResolvePayload(),
+      null,
+      2,
+    );
+  }
 };
 
 const connectRealtime = () => {
@@ -345,6 +399,19 @@ const bindRealtimeHandlers = () => {
       },
     );
     scheduleRefresh(true);
+  });
+
+  socket.on("band.alert.updated.v1", (payload) => {
+    renderBandAlert(payload);
+    addProgressLog(
+      payload.estado === "ACTIVO"
+        ? `Alerta critica: ${payload.codigo || "bandas detenidas"}. Avance pausado.`
+        : `Alerta resuelta: ${payload.errorId || "-"}. Bandas reanudadas.`,
+      {
+        occurredAt: payload.resolvedAt || payload.occurredAt,
+        signature: `band-alert-${payload.event}-${payload.errorId}-${payload.estado}`,
+      },
+    );
   });
 };
 
@@ -686,6 +753,7 @@ document.querySelector("#btnLogout").addEventListener("click", () => {
   if (ui.measurementList) {
     ui.measurementList.innerHTML = "<small>Sin mediciones.</small>";
   }
+  renderBandAlert();
   setAutoStatus("Sin seguimiento activo.");
   setEstado("Sesion cerrada.", "Token eliminado de localStorage.");
 });
@@ -868,6 +936,47 @@ document
     }
   });
 
+if (ui.bandAlertErrorId) {
+  ui.bandAlertErrorId.addEventListener("input", () => {
+    if (ui.bandAlertResolvePayload) {
+      ui.bandAlertResolvePayload.textContent = JSON.stringify(
+        buildBandResolvePayload(),
+        null,
+        2,
+      );
+    }
+  });
+}
+
+if (ui.btnResolveBandAlert) {
+  ui.btnResolveBandAlert.addEventListener("click", async () => {
+    try {
+      const payload = buildBandResolvePayload();
+      if (!payload.errorId) {
+        throw new Error("No hay errorId para resolver.");
+      }
+
+      const data = await api(
+        "/api/v1/band-alerts/resolve",
+        {
+          method: "POST",
+          body: JSON.stringify(payload),
+        },
+        true,
+      );
+
+      setEstado("Resolucion enviada al emulador:", data);
+      addProgressLog(`Resolucion enviada para alerta ${payload.errorId}.`, {
+        signature: `band-alert-resolve-sent-${payload.errorId}`,
+      });
+    } catch (error) {
+      setEstado("Error resolviendo alerta de bandas:", error.message);
+    }
+  });
+}
+
 if (getToken()) {
   autoFillClientIdFromMe();
 }
+
+renderBandAlert();

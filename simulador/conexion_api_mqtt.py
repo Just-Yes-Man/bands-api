@@ -1,34 +1,24 @@
-"""Conexión MQTT con la API: suscripción de pedidos y publicación de avances/mediciones."""
+"""Conexion MQTT con la API: suscripcion de pedidos y arranque de simulaciones."""
 
 from __future__ import annotations
 
-import json
-import os
 import threading
-import time
 from typing import Any, Dict
 
 import paho.mqtt.client as mqtt
 
-from simulador.logica_simulador import (
-    build_avance_event,
-    build_measurement_event,
-    extract_order_detail,
-    normalize_line,
-    parse_payload,
+from simulador.config import (
+    DEFAULT_BROKER,
+    DEFAULT_PASSWORD,
+    DEFAULT_PORT,
+    DEFAULT_USERNAME,
+    TOPIC_BANDAS_ERROR_RESOLVER,
+    TOPIC_PEDIDOS_CREACION,
 )
-
-DEFAULT_BROKER = os.getenv("MQTT_BROKER", "localhost")
-DEFAULT_PORT = int(os.getenv("MQTT_PORT", "1883"))
-DEFAULT_USERNAME = os.getenv("MQTT_USERNAME")
-DEFAULT_PASSWORD = os.getenv("MQTT_PASSWORD")
-
-TOPIC_PEDIDOS_CREACION = "pedidos/creacion"
-TOPIC_PEDIDOS_AVANCES = "pedidos/avances"
-TOPIC_MEDICIONES = "productos/mediciones"
-
-PROGRESS_DELAY_SEC = float(os.getenv("SIM_PROGRESS_DELAY_SEC", "0.35"))
-STAGE_DELAY_SEC = float(os.getenv("SIM_STAGE_DELAY_SEC", "15"))
+from simulador.errores import resolve_band_stop_error
+from simulador.order_payload import extract_order_detail
+from simulador.payload_parser import parse_payload
+from simulador.simulacion_pedido import simulate_order
 
 
 def on_connect(client: mqtt.Client, _userdata: Any, _flags: Dict[str, Any], rc: int):
@@ -37,8 +27,14 @@ def on_connect(client: mqtt.Client, _userdata: Any, _flags: Dict[str, Any], rc: 
         return
 
     print("[INFO] Conectado al broker MQTT")
-    client.subscribe(TOPIC_PEDIDOS_CREACION, qos=1)
+    client.subscribe(
+        [
+            (TOPIC_PEDIDOS_CREACION, 1),
+            (TOPIC_BANDAS_ERROR_RESOLVER, 1),
+        ]
+    )
     print(f"[INFO] Suscripto a: {TOPIC_PEDIDOS_CREACION}")
+    print(f"[INFO] Suscripto a: {TOPIC_BANDAS_ERROR_RESOLVER}")
 
 
 def on_message(client: mqtt.Client, _userdata: Any, msg: mqtt.MQTTMessage):
@@ -46,6 +42,8 @@ def on_message(client: mqtt.Client, _userdata: Any, msg: mqtt.MQTTMessage):
     print(f"[RX] {msg.topic} -> {pedido}")
 
     if msg.topic != TOPIC_PEDIDOS_CREACION:
+        if msg.topic == TOPIC_BANDAS_ERROR_RESOLVER:
+            resolve_band_stop_error(client, pedido)
         return
 
     detail = extract_order_detail(pedido)
@@ -61,53 +59,6 @@ def on_message(client: mqtt.Client, _userdata: Any, msg: mqtt.MQTTMessage):
         args=(client, order_id, lineas),
         daemon=True,
     ).start()
-
-
-def simulate_order(client: mqtt.Client, order_id: Any, lineas: list[Dict[str, Any]]):
-    time.sleep(STAGE_DELAY_SEC)
-
-    for linea in lineas:
-        normalized = normalize_line(linea)
-        line_id = normalized.get("id")
-        modelo_producto_id = normalized.get("modeloProductoId")
-        cantidad = normalized.get("cantidad") or 0
-
-        if not line_id or not modelo_producto_id or cantidad <= 0:
-            continue
-
-        medicion = build_measurement_event(
-            order_id,
-            line_id,
-            modelo_producto_id,
-            TOPIC_PEDIDOS_CREACION,
-        )
-        medicion_payload = json.dumps(medicion, ensure_ascii=False)
-        medicion_result = client.publish(TOPIC_MEDICIONES, medicion_payload, qos=1)
-        if medicion_result.rc == mqtt.MQTT_ERR_SUCCESS:
-            print(f"[TX] {TOPIC_MEDICIONES} -> {medicion_payload}")
-        else:
-            print(f"[ERROR] Falló publicación ({medicion_result.rc})")
-
-        time.sleep(STAGE_DELAY_SEC)
-
-        for idx in range(int(cantidad)):
-            avance = build_avance_event(
-                order_id,
-                line_id,
-                modelo_producto_id,
-                delta_procesadas=1,
-                delta_rechazadas=0,
-                secuencia=idx + 1,
-                total=int(cantidad),
-            )
-            avance_payload = json.dumps(avance, ensure_ascii=False)
-            avance_result = client.publish(TOPIC_PEDIDOS_AVANCES, avance_payload, qos=1)
-            if avance_result.rc == mqtt.MQTT_ERR_SUCCESS:
-                print(f"[TX] {TOPIC_PEDIDOS_AVANCES} -> {avance_payload}")
-            else:
-                print(f"[ERROR] Falló publicación ({avance_result.rc})")
-
-            time.sleep(PROGRESS_DELAY_SEC)
 
 
 def build_client(client_id: str, username: str | None, password: str | None) -> mqtt.Client:

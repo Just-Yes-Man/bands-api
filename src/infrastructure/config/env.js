@@ -57,6 +57,14 @@ module.exports = {
     process.env.EMQX_ORDERS_PROGRESS_TOPIC || "pedidos/avances",
   EMQX_MEASUREMENTS_TOPIC:
     process.env.EMQX_MEASUREMENTS_TOPIC || "productos/mediciones",
+  EMQX_BAND_ALERTS_TOPIC:
+    process.env.EMQX_BAND_ALERTS_TOPIC ||
+    process.env.MQTT_TOPIC_BANDAS_ALERTAS ||
+    "bandas/alertas",
+  EMQX_BAND_ERROR_RESOLVE_TOPIC:
+    process.env.EMQX_BAND_ERROR_RESOLVE_TOPIC ||
+    process.env.MQTT_TOPIC_BANDAS_ERROR_RESOLVER ||
+    "bandas/errores/resolver",
 
   MEASUREMENT_REALTIME_NAMESPACE:
     process.env.MEASUREMENT_REALTIME_NAMESPACE || "/realtime/v1",
