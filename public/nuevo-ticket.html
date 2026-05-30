@@ -1,102 +1,245 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="es">
-<head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Clientes y Pedidos (v1)</title>
-<style>
-:root{--bg:#0f172a;--panel:#111827;--accent:#22c55e;--text:#e5e7eb;--muted:#9ca3af;--danger:#ef4444}
-*{box-sizing:border-box}
-body{margin:0;font-family:Arial,sans-serif;background:linear-gradient(120deg,#0f172a,#1e293b);color:var(--text);padding:24px}
-h1{margin:0 0 16px}
-h2{margin:0 0 10px;font-size:18px}
-.layout{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px}
-.card{background:rgba(17,24,39,.92);border:1px solid #334155;border-radius:12px;padding:16px}
-label{display:block;margin:8px 0 4px;color:var(--muted);font-size:13px}
-input,textarea{width:100%;padding:10px;border-radius:8px;border:1px solid #334155;background:#0b1220;color:var(--text)}
-textarea{min-height:90px;resize:vertical}
-button{margin-top:10px;padding:10px 12px;border:none;border-radius:8px;background:var(--accent);color:#052e16;font-weight:700;cursor:pointer}
-button.secondary{background:#38bdf8;color:#082f49}
-button.danger{background:var(--danger);color:#fff}
-.inline{display:flex;gap:8px;flex-wrap:wrap}
-#estado{white-space:pre-wrap;background:#020617;border:1px solid #334155;border-radius:12px;padding:12px;margin-bottom:16px;min-height:84px}
-small{color:var(--muted)}
-code{color:#93c5fd}
-</style>
-</head>
-<body>
-<h1>Frontend adaptado a usuarios + pedidos completos (API v1)</h1>
-<p><small>Usa <code>/api/v1/auth/*</code> y <code>/api/v1/orders*</code> con token Bearer. La validación del progreso la resuelve automáticamente el sistema.</small></p>
-<div id="estado">Listo.</div>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Clientes y Pedidos (v1)</title>
+    <style>
+      :root {
+        --bg: #0f172a;
+        --panel: #111827;
+        --accent: #22c55e;
+        --text: #e5e7eb;
+        --muted: #9ca3af;
+        --danger: #ef4444;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        font-family: Arial, sans-serif;
+        background: linear-gradient(120deg, #0f172a, #1e293b);
+        color: var(--text);
+        padding: 24px;
+      }
+      h1 {
+        margin: 0 0 16px;
+      }
+      h2 {
+        margin: 0 0 10px;
+        font-size: 18px;
+      }
+      .layout {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+        gap: 16px;
+      }
+      .card {
+        background: rgba(17, 24, 39, 0.92);
+        border: 1px solid #334155;
+        border-radius: 12px;
+        padding: 16px;
+      }
+      label {
+        display: block;
+        margin: 8px 0 4px;
+        color: var(--muted);
+        font-size: 13px;
+      }
+      input,
+      textarea {
+        width: 100%;
+        padding: 10px;
+        border-radius: 8px;
+        border: 1px solid #334155;
+        background: #0b1220;
+        color: var(--text);
+      }
+      textarea {
+        min-height: 90px;
+        resize: vertical;
+      }
+      button {
+        margin-top: 10px;
+        padding: 10px 12px;
+        border: none;
+        border-radius: 8px;
+        background: var(--accent);
+        color: #052e16;
+        font-weight: 700;
+        cursor: pointer;
+      }
+      button.secondary {
+        background: #38bdf8;
+        color: #082f49;
+      }
+      button.danger {
+        background: var(--danger);
+        color: #fff;
+      }
+      .inline {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+      #estado {
+        white-space: pre-wrap;
+        background: #020617;
+        border: 1px solid #334155;
+        border-radius: 12px;
+        padding: 12px;
+        margin-bottom: 16px;
+        min-height: 84px;
+      }
+      small {
+        color: var(--muted);
+      }
+      code {
+        color: #93c5fd;
+      }
+      .metric {
+        background: #0b1220;
+        border: 1px solid #334155;
+        border-radius: 10px;
+        padding: 10px;
+        margin-top: 8px;
+        white-space: pre-wrap;
+      }
+      #progressLog {
+        max-height: 220px;
+        overflow-y: auto;
+        font-family: "Courier New", monospace;
+      }
+      .badge {
+        display: inline-block;
+        padding: 2px 8px;
+        border-radius: 999px;
+        font-size: 11px;
+        margin-right: 6px;
+      }
+      .badge.ok {
+        background: #22c55e;
+        color: #052e16;
+      }
+      .badge.fail {
+        background: #ef4444;
+        color: #fff;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Frontend adaptado a usuarios + pedidos completos (API v1)</h1>
+    <p>
+      <small
+        >Usa <code>/api/v1/auth/*</code> y <code>/api/v1/orders*</code> con
+        token Bearer. La validación del progreso la resuelve automáticamente el
+        sistema.</small
+      >
+    </p>
+    <div id="estado">Listo.</div>
 
-<div class="layout">
-  <section class="card">
-    <h2>1) Registro de usuario</h2>
-    <label>Nombre</label>
-    <input id="registerNombre" placeholder="cliente_demo" />
-    <label>Contraseña (mínimo 8 y con número)</label>
-    <input id="registerContrasena" type="password" placeholder="Clave1234" />
-    <button id="btnRegister">Registrar cliente</button>
-  </section>
+    <div class="layout">
+      <section class="card">
+        <h2>1) Registro de usuario</h2>
+        <label>Nombre</label>
+        <input id="registerNombre" placeholder="cliente_demo" />
+        <label>Contraseña (mínimo 8 y con número)</label>
+        <input
+          id="registerContrasena"
+          type="password"
+          placeholder="Clave1234"
+        />
+        <button id="btnRegister">Registrar cliente</button>
+      </section>
 
-  <section class="card">
-    <h2>2) Login</h2>
-    <label>Nombre</label>
-    <input id="loginNombre" placeholder="cliente_demo" />
-    <label>Contraseña</label>
-    <input id="loginContrasena" type="password" placeholder="Clave1234" />
-    <button id="btnLogin">Iniciar sesión</button>
-    <div class="inline">
-      <button id="btnMe" class="secondary">Ver /protected/me</button>
-      <button id="btnLogout" class="danger">Cerrar sesión</button>
-    </div>
-  </section>
+      <section class="card">
+        <h2>2) Login</h2>
+        <label>Nombre</label>
+        <input id="loginNombre" placeholder="cliente_demo" />
+        <label>Contraseña</label>
+        <input id="loginContrasena" type="password" placeholder="Clave1234" />
+        <button id="btnLogin">Iniciar sesión</button>
+        <div class="inline">
+          <button id="btnMe" class="secondary">Ver /protected/me</button>
+          <button id="btnLogout" class="danger">Cerrar sesión</button>
+        </div>
+      </section>
 
-
-
-  <section class="card">
-    <h2>3) Crear pedido completo</h2>
-    <label>Cliente ID</label>
-    <input id="createClienteId" type="number" placeholder="1" />
-    <label>Líneas JSON (<code>modeloProductoId</code>, <code>cantidad</code>)</label>
-    <textarea id="createLineas">[
+      <section class="card">
+        <h2>3) Crear pedido completo</h2>
+        <label>Cliente ID</label>
+        <input id="createClienteId" type="number" placeholder="1" />
+        <label
+          >Líneas JSON (<code>modeloProductoId</code>,
+          <code>cantidad</code>)</label
+        >
+        <textarea id="createLineas">
+[
   {"modeloProductoId": 1, "cantidad": 10},
   {"modeloProductoId": 2, "cantidad": 4}
-]</textarea>
-    <button id="btnCreateOrder">Crear pedido</button>
-  </section>
+]</textarea
+        >
+        <button id="btnCreateOrder">Crear pedido</button>
+      </section>
 
-  <section class="card">
-    <h2>4) Consultar pedidos</h2>
-    <label>Cliente ID</label>
-    <input id="listClienteId" type="number" placeholder="1" />
-    <div class="inline">
-      <button id="btnListOrders" class="secondary">Listar pedidos</button>
-      <button id="btnGetOrder" class="secondary">Ver detalle</button>
+      <section class="card">
+        <h2>4) Consultar pedidos</h2>
+        <label>Cliente ID</label>
+        <input id="listClienteId" type="number" placeholder="1" />
+        <div class="inline">
+          <button id="btnListOrders" class="secondary">Listar pedidos</button>
+          <button id="btnGetOrder" class="secondary">Ver detalle</button>
+        </div>
+        <label>Order ID (para detalle/progreso/cancelación)</label>
+        <input id="orderId" type="number" placeholder="123" />
+        <label>Line ID (para progreso/cancelación)</label>
+        <input id="lineId" type="number" placeholder="456" />
+        <div id="lineasDisponibles"></div>
+      </section>
+
+      <section class="card">
+        <h2>5) Actualizar progreso o cancelar línea</h2>
+        <label>Delta procesadas</label>
+        <input id="deltaProcesadas" type="number" value="1" min="0" />
+        <label>Delta rechazadas</label>
+        <input id="deltaRechazadas" type="number" value="0" min="0" />
+        <label>Version</label>
+        <input id="version" type="number" value="0" min="0" />
+        <p>
+          <small
+            ><strong>¿Qué es version?</strong> Es un contador de concurrencia
+            por línea. Usa la versión actual de la línea (se autocompleta al
+            consultar detalle o al elegir una línea).</small
+          >
+        </p>
+        <div class="inline">
+          <button id="btnUpdateProgress">Actualizar progreso</button>
+          <button id="btnCancelLine" class="danger">Cancelar línea</button>
+          <button id="btnCancelOrder" class="danger">Cancelar pedido</button>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>6) Seguimiento automático</h2>
+        <p>
+          <small
+            >Selecciona una línea para activar el seguimiento. El avance y las
+            mediciones llegan en tiempo real desde el emulador.</small
+          >
+        </p>
+        <div id="autoStatus" class="metric">Sin seguimiento activo.</div>
+        <label>Log de avance (tiempo real)</label>
+        <div id="progressLog" class="metric">Sin eventos de avance.</div>
+        <label>Progreso del pedido</label>
+        <div id="orderProgress" class="metric">-</div>
+        <label>Progreso de la línea seleccionada</label>
+        <div id="lineProgress" class="metric">-</div>
+        <label>Mediciones generadas</label>
+        <div id="measurementList" class="metric">-</div>
+      </section>
     </div>
-    <label>Order ID (para detalle/progreso/cancelación)</label>
-    <input id="orderId" type="number" placeholder="123" />
-    <label>Line ID (para progreso/cancelación)</label>
-    <input id="lineId" type="number" placeholder="456" />
-    <div id="lineasDisponibles"></div>
-  </section>
-
-  <section class="card">
-    <h2>5) Actualizar progreso o cancelar línea</h2>
-    <label>Delta procesadas</label>
-    <input id="deltaProcesadas" type="number" value="1" min="0" />
-    <label>Delta rechazadas</label>
-    <input id="deltaRechazadas" type="number" value="0" min="0" />
-    <label>Version</label>
-    <input id="version" type="number" value="0" min="0" />
-    <p><small><strong>¿Qué es version?</strong> Es un contador de concurrencia por línea. Usa la versión actual de la línea (se autocompleta al consultar detalle o al elegir una línea).</small></p>
-    <div class="inline">
-      <button id="btnUpdateProgress">Actualizar progreso</button>
-      <button id="btnCancelLine" class="danger">Cancelar línea</button>
-    </div>
-  </section>
-</div>
-
-<script src="js/nuevo-ticket.js"></script>
-</body>
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="js/nuevo-ticket.js"></script>
+  </body>
 </html>
