@@ -205,6 +205,15 @@
       color: var(--muted);
     }
 
+    .line-timing {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+      font-size: 12px;
+      color: var(--muted);
+    }
+
     .progress-track {
       height: 8px;
       border-radius: 999px;
@@ -389,18 +398,33 @@
           progress: 0,
           bandProgress: {},
           inspected: false,
-          classified: false
+          classified: false,
+          expectedSec: Number(line.expectedSec || line.expected_time_sec || 0) || 0,
+          startedAt: null,
+          completedAt: null,
+          realSec: null
         });
       } else {
         const existing = order.lines.get(lineId);
         if (existing.cantidad === 0 && line.cantidad) {
           existing.cantidad = Number(line.cantidad);
         }
+        if (!existing.expectedSec && (line.expectedSec || line.expected_time_sec)) {
+          existing.expectedSec = Number(line.expectedSec || line.expected_time_sec || 0) || 0;
+        }
         if (!existing.bandProgress) {
           existing.bandProgress = {};
         }
       }
       return order.lines.get(lineId);
+    };
+
+    const formatSeconds = (value) => {
+      if (!Number.isFinite(value)) return 'n/a';
+      if (value < 60) return `${value.toFixed(1)}s`;
+      const mins = Math.floor(value / 60);
+      const secs = Math.round(value % 60).toString().padStart(2, '0');
+      return `${mins}m ${secs}s`;
     };
 
     const splitCounts = (total, bands) => {
@@ -453,6 +477,10 @@
           const lineItem = document.createElement('div');
           lineItem.className = 'line-item';
           const percent = line.cantidad ? Math.min(100, Math.round((line.progress / line.cantidad) * 100)) : 0;
+          const expected = line.expectedSec ? formatSeconds(line.expectedSec) : 'n/a';
+          const real = Number.isFinite(line.realSec)
+            ? formatSeconds(line.realSec)
+            : (line.completedAt ? 'n/a' : 'en curso');
           const targets = splitCounts(line.cantidad, BAND_COUNT);
           const bandKeys = Object.keys(line.bandProgress || {});
           const bands = bandKeys.length
@@ -477,6 +505,10 @@
             <div class="line-meta">
               <span>Linea ${line.id} - Modelo ${line.modeloProductoId}</span>
               <span>${line.progress}/${line.cantidad}</span>
+            </div>
+            <div class="line-timing">
+              <span>Tiempo esperado: ${expected}</span>
+              <span>Tiempo real: ${real}</span>
             </div>
             <div class="progress-track">
               <div class="progress-bar" style="width: ${percent}%"></div>
@@ -526,6 +558,7 @@
     const handleEvent = (payload) => {
       const event = payload.event;
       const data = payload.data || {};
+      const eventTs = typeof payload.timestamp === 'number' ? payload.timestamp : Date.now() / 1000;
       const orderId = data.orderId || data.pedidoId || data.order_id;
       if (!orderId) return;
 
@@ -533,7 +566,12 @@
 
       if (event === 'pedido.creado') {
         order.created = true;
-        (data.lineas || []).forEach((line) => ensureLine(order, line));
+        (data.lineas || []).forEach((line) => {
+          const entry = ensureLine(order, line);
+          if (!entry.startedAt) {
+            entry.startedAt = eventTs;
+          }
+        });
         pushActivity('Pedido creado', `Orden ${orderId} recibida con ${order.lines.size} lineas.`);
       }
 
@@ -541,11 +579,17 @@
         order.inspected = true;
         const line = ensureLine(order, data);
         line.inspected = true;
+        if (!line.startedAt) {
+          line.startedAt = eventTs;
+        }
         pushActivity('Inspeccion completa', `Linea ${line.id} de orden ${orderId} inspeccionada.`);
       }
 
       if (event === 'pedido.avance') {
         const line = ensureLine(order, data);
+        if (!line.startedAt) {
+          line.startedAt = eventTs;
+        }
         if (!line.cantidad && data.total) {
           line.cantidad = Number(data.total);
         }
@@ -564,6 +608,10 @@
       if (event === 'pedido.clasificado') {
         const line = ensureLine(order, data);
         line.classified = true;
+        line.completedAt = eventTs;
+        if (line.startedAt) {
+          line.realSec = Math.max(0, line.completedAt - line.startedAt);
+        }
         order.classified = Array.from(order.lines.values()).every((l) => l.classified);
         pushActivity('Clasificacion', `Orden ${orderId} linea ${line.id} clasificada.`);
       }

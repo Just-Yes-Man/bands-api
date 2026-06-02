@@ -41,6 +41,19 @@ def split_counts(total: int, bands: int) -> list[int]:
     return [base + (1 if idx < remainder else 0) for idx in range(bands)]
 
 
+def estimate_line_time_sec(
+    cantidad: int,
+    bands: int,
+    stage_delay_sec: float,
+    progress_delay_sec: float,
+) -> float:
+    if cantidad <= 0:
+        return 0.0
+    band_counts = split_counts(cantidad, bands)
+    max_band = max(band_counts) if band_counts else cantidad
+    return (stage_delay_sec * 2.0) + (max_band * progress_delay_sec)
+
+
 def on_connect(client: mqtt.Client, _userdata: Any, _flags: Dict[str, Any], rc: int):
     if rc != 0:
         print(f"[ERROR] No se pudo conectar al broker MQTT (rc={rc})")
@@ -67,7 +80,20 @@ def on_message(client: mqtt.Client, _userdata: Any, msg: mqtt.MQTTMessage):
         return
 
     if order_id and lineas:
-        normalized_lineas = [normalize_line(linea) for linea in lineas]
+        normalized_lineas = []
+        for linea in lineas:
+            normalized = normalize_line(linea)
+            cantidad = int(normalized.get("cantidad") or 0)
+            normalized["expectedSec"] = round(
+                estimate_line_time_sec(
+                    cantidad,
+                    BAND_COUNT,
+                    STAGE_DELAY_SEC,
+                    PROGRESS_DELAY_SEC,
+                ),
+                2,
+            )
+            normalized_lineas.append(normalized)
         HUB.emit(
             "pedido.creado",
             {
