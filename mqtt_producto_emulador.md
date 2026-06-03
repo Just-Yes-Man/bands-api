@@ -10,6 +10,8 @@ Script: `mqtt_producto_emulador.py`
   - `pedidos/avances` (ej. `pedido.avance`)
 - Publica una medicion por linea en:
   - `productos/mediciones`
+- Si se inyecta un fallo, avisa en:
+  - `productos/mediciones/errores`
 
 ## Requisitos
 
@@ -31,6 +33,13 @@ También soporta variables de entorno:
 - `MQTT_PASSWORD`
 - `SIM_PROGRESS_DELAY_SEC`
 - `SIM_STAGE_DELAY_SEC`
+- `SIM_MEASUREMENT_ERROR_RATE` (default: 0.25, usa 1 para forzar error)
+- `SIM_MEASUREMENT_ERROR_TOPIC` (default: productos/mediciones/errores)
+- `SIM_REWORK_DELAY_SEC` (default: 2)
+
+Cuando ocurre un fallo simulado, el emulador publica una medicion defectuosa,
+notifica el error por topic y despues vuelve a generar la medicion correcta para
+que el pedido pueda continuar.
 
 ## Ejemplo de pedido entrante
 

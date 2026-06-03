@@ -20,6 +20,7 @@ const ui = {
   orderProgress: document.querySelector("#orderProgress"),
   lineProgress: document.querySelector("#lineProgress"),
   measurementList: document.querySelector("#measurementList"),
+  measurementErrors: document.querySelector("#measurementErrors"),
 };
 
 let socket = null;
@@ -41,6 +42,7 @@ const MAX_PROGRESS_LOG_ENTRIES = 40;
 const REFRESH_MIN_INTERVAL_MS = 120;
 let progressLogEntries = [];
 let lastProgressLogSignature = null;
+let measurementErrors = [];
 
 const getToken = () => localStorage.getItem(TOKEN_KEY) || "";
 const setToken = (token) => localStorage.setItem(TOKEN_KEY, token);
@@ -107,9 +109,11 @@ const resetProgressLog = (initialMessage = "Sin eventos de avance.") => {
   progressLogEntries = [];
   lastProgressLogSignature = null;
   lastOrderProgressSnapshot = null;
+  measurementErrors = [];
   if (ui.progressLog) {
     ui.progressLog.textContent = initialMessage;
   }
+  renderMeasurementErrors();
 };
 
 const addProgressLog = (message, { occurredAt, signature } = {}) => {
@@ -298,6 +302,32 @@ const bindRealtimeHandlers = () => {
     }
   });
 
+  socket.on("measurement.error.v1", (payload) => {
+    if (
+      !tracking.orderId ||
+      Number(payload.orderId) !== Number(tracking.orderId) ||
+      (payload.lineId !== null && Number(payload.lineId) !== Number(tracking.lineId))
+    ) {
+      return;
+    }
+
+    measurementErrors.push(payload);
+    if (measurementErrors.length > 20) {
+      measurementErrors.shift();
+    }
+
+    addProgressLog(
+      `Error de medicion: ${formatMeasurementErrorReason(payload.reason)}. Reproceso solicitado.`,
+      {
+        occurredAt: payload.occurredAt,
+        signature:
+          payload.faultyIdempotencyKey ||
+          `measurement-error-${payload.orderId}-${payload.lineId}-${payload.occurredAt || Date.now()}`,
+      },
+    );
+    renderMeasurementErrors();
+  });
+
   socket.on("measurement.process.started.v1", (payload) => {
     if (
       tracking.orderId &&
@@ -428,6 +458,75 @@ const renderMeasurements = (measurements = []) => {
     .join("<hr/>");
 
   ui.measurementList.innerHTML = items;
+};
+
+const formatMeasurementValue = (value) => {
+  if (value === true) {
+    return "OK";
+  }
+  if (value === false) {
+    return "Falla";
+  }
+  if (value === null || typeof value === "undefined" || value === "") {
+    return "n/a";
+  }
+  return String(value);
+};
+
+const formatMeasurementErrorReason = (reason) => {
+  const labels = {
+    wrong_product: "Producto incorrecto",
+    bad_attributes: "Atributos fuera de rango",
+    measurement_error: "Error de medicion",
+  };
+  return labels[reason] || reason || "Error de medicion";
+};
+
+const renderMeasurementErrors = () => {
+  if (!ui.measurementErrors) {
+    return;
+  }
+
+  if (!measurementErrors.length) {
+    ui.measurementErrors.innerHTML = "Sin errores.";
+    return;
+  }
+
+  const latest = measurementErrors[measurementErrors.length - 1];
+  const expected = latest.expected || {};
+  const received = latest.received || {};
+  const fields = [
+    ["modeloProductoId", "Modelo"],
+    ["qrOk", "QR"],
+    ["pesoOk", "Peso"],
+    ["colorOk", "Color"],
+    ["alturaOk", "Altura"],
+  ];
+
+  const comparison = fields
+    .map(([key, label]) => {
+      const expectedValue = formatMeasurementValue(expected[key]);
+      const receivedValue = formatMeasurementValue(received[key]);
+      const mismatch = expectedValue !== receivedValue;
+      return [
+        `<span class="head">${label}</span>`,
+        `<span>${expectedValue}</span>`,
+        `<span class="${mismatch ? "bad" : ""}">${receivedValue}</span>`,
+      ].join("");
+    })
+    .join("");
+
+  ui.measurementErrors.innerHTML = [
+    `<div class="error-summary">`,
+    `<span class="error-count">${measurementErrors.length} error${measurementErrors.length === 1 ? "" : "es"}</span>`,
+    `<div>${formatMeasurementErrorReason(latest.reason)}</div>`,
+    `<small>Ultimo evento: ${latest.occurredAt || "-"}</small>`,
+    `<div class="comparison">`,
+    `<span class="head">Campo</span><span class="head">Esperado</span><span class="head">Medido</span>`,
+    comparison,
+    `</div>`,
+    `</div>`,
+  ].join("");
 };
 
 const refreshOrderDetail = async () => {

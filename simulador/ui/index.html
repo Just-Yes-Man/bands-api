@@ -88,11 +88,45 @@
       align-items: baseline;
       justify-content: space-between;
       gap: 16px;
+      flex-wrap: wrap;
     }
 
     .summary-total {
       font-size: 28px;
       font-weight: 700;
+    }
+
+    .summary-kpis {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      align-items: stretch;
+    }
+
+    .summary-kpi {
+      min-width: 112px;
+      padding: 10px 12px;
+      border-radius: 12px;
+      background: #f6f8fc;
+      display: grid;
+      gap: 2px;
+    }
+
+    .summary-kpi strong {
+      font-size: 22px;
+      line-height: 1;
+    }
+
+    .summary-kpi span {
+      color: var(--muted);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .summary-kpi.error {
+      background: #fff1ea;
+      color: #b84822;
     }
 
     .summary-progress {
@@ -198,6 +232,11 @@
       gap: 8px;
     }
 
+    .line-item.has-error {
+      border: 1px solid rgba(255, 111, 60, 0.38);
+      background: #fff8f4;
+    }
+
     .line-meta {
       display: flex;
       justify-content: space-between;
@@ -246,6 +285,61 @@
     .stage-pill.active {
       background: #e7fbfa;
       color: #13807a;
+    }
+
+    .stage-pill.error {
+      background: #fff1ea;
+      color: #b84822;
+    }
+
+    .comparison {
+      border-radius: 12px;
+      border: 1px solid #ffd8c7;
+      background: #fffaf7;
+      display: grid;
+      gap: 8px;
+      padding: 10px;
+    }
+
+    .comparison-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      color: #b84822;
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .comparison-grid {
+      display: grid;
+      grid-template-columns: minmax(88px, 0.9fr) minmax(80px, 1fr) minmax(80px, 1fr);
+      gap: 6px;
+      align-items: stretch;
+      font-size: 12px;
+    }
+
+    .comparison-cell {
+      padding: 7px 8px;
+      border-radius: 8px;
+      background: #ffffff;
+      color: var(--muted);
+      min-width: 0;
+      overflow-wrap: anywhere;
+    }
+
+    .comparison-cell.header {
+      background: transparent;
+      color: var(--ink);
+      font-weight: 700;
+    }
+
+    .comparison-cell.mismatch {
+      background: #fff1ea;
+      color: #b84822;
+      font-weight: 700;
     }
 
     .activity {
@@ -331,7 +425,16 @@
           <h2>Progreso total</h2>
           <div class="summary-total" id="totalProgressText">0/0</div>
         </div>
-        <div class="badge">BANDAS ACTIVAS</div>
+        <div class="summary-kpis">
+          <div class="summary-kpi">
+            <strong id="activeOrdersText">0</strong>
+            <span>Pedidos</span>
+          </div>
+          <div class="summary-kpi error">
+            <strong id="errorCountText">0</strong>
+            <span>Errores</span>
+          </div>
+        </div>
       </div>
       <div class="summary-progress">
         <div class="summary-progress-bar" id="totalProgressBar"></div>
@@ -362,6 +465,8 @@
     const statusDot = document.getElementById('statusDot');
     const totalProgressText = document.getElementById('totalProgressText');
     const totalProgressBar = document.getElementById('totalProgressBar');
+    const activeOrdersText = document.getElementById('activeOrdersText');
+    const errorCountText = document.getElementById('errorCountText');
 
     const setStatus = (text, ok) => {
       statusText.textContent = text;
@@ -402,7 +507,9 @@
           expectedSec: Number(line.expectedSec || line.expected_time_sec || 0) || 0,
           startedAt: null,
           completedAt: null,
-          realSec: null
+          realSec: null,
+          errors: [],
+          lastError: null
         });
       } else {
         const existing = order.lines.get(lineId);
@@ -414,6 +521,9 @@
         }
         if (!existing.bandProgress) {
           existing.bandProgress = {};
+        }
+        if (!existing.errors) {
+          existing.errors = [];
         }
       }
       return order.lines.get(lineId);
@@ -434,18 +544,79 @@
       return Array.from({ length: bands }, (_, idx) => base + (idx < remainder ? 1 : 0));
     };
 
+    const formatValue = (value) => {
+      if (value === true) return 'OK';
+      if (value === false) return 'Falla';
+      if (value === undefined || value === null || value === '') return 'n/a';
+      return String(value);
+    };
+
+    const reasonLabel = (reason) => {
+      const labels = {
+        wrong_product: 'Producto incorrecto',
+        bad_attributes: 'Atributos fuera de rango',
+        measurement_error: 'Error de medicion'
+      };
+      return labels[reason] || reason || 'Error de medicion';
+    };
+
+    const buildComparisonHtml = (line) => {
+      const error = line.lastError;
+      if (!error) return '';
+
+      const expected = error.expected || {};
+      const received = error.received || {};
+      const fields = [
+        ['modeloProductoId', 'Modelo'],
+        ['qrOk', 'QR'],
+        ['pesoOk', 'Peso'],
+        ['colorOk', 'Color'],
+        ['alturaOk', 'Altura']
+      ];
+
+      const rows = fields.map(([key, label]) => {
+        const expectedValue = expected[key];
+        const receivedValue = received[key];
+        const mismatch = formatValue(expectedValue) !== formatValue(receivedValue);
+        return `
+          <div class="comparison-cell header">${label}</div>
+          <div class="comparison-cell">${formatValue(expectedValue)}</div>
+          <div class="comparison-cell ${mismatch ? 'mismatch' : ''}">${formatValue(receivedValue)}</div>
+        `;
+      }).join('');
+
+      return `
+        <div class="comparison">
+          <div class="comparison-head">
+            <span>${reasonLabel(error.reason)}</span>
+            <span>${line.errors.length} error${line.errors.length === 1 ? '' : 'es'}</span>
+          </div>
+          <div class="comparison-grid">
+            <div class="comparison-cell header">Campo</div>
+            <div class="comparison-cell header">Esperado</div>
+            <div class="comparison-cell header">Medido</div>
+            ${rows}
+          </div>
+        </div>
+      `;
+    };
+
     const renderSummary = () => {
       let totalTarget = 0;
       let totalProgress = 0;
+      let totalErrors = 0;
       orders.forEach((order) => {
         order.lines.forEach((line) => {
           totalTarget += Number(line.cantidad || 0);
           totalProgress += Number(line.progress || 0);
+          totalErrors += (line.errors || []).length;
         });
       });
       const percent = totalTarget ? Math.min(100, Math.round((totalProgress / totalTarget) * 100)) : 0;
       totalProgressText.textContent = `${totalProgress}/${totalTarget}`;
       totalProgressBar.style.width = `${percent}%`;
+      activeOrdersText.textContent = String(orders.size);
+      errorCountText.textContent = String(totalErrors);
     };
 
     const renderOrders = () => {
@@ -475,12 +646,13 @@
 
         order.lines.forEach((line) => {
           const lineItem = document.createElement('div');
-          lineItem.className = 'line-item';
+          lineItem.className = `line-item ${(line.errors || []).length ? 'has-error' : ''}`;
           const percent = line.cantidad ? Math.min(100, Math.round((line.progress / line.cantidad) * 100)) : 0;
           const expected = line.expectedSec ? formatSeconds(line.expectedSec) : 'n/a';
           const real = Number.isFinite(line.realSec)
             ? formatSeconds(line.realSec)
             : (line.completedAt ? 'n/a' : 'en curso');
+          const comparisonHtml = buildComparisonHtml(line);
           const targets = splitCounts(line.cantidad, BAND_COUNT);
           const bandKeys = Object.keys(line.bandProgress || {});
           const bands = bandKeys.length
@@ -515,8 +687,10 @@
             </div>
             <div class="stages">
               <span class="stage-pill ${line.inspected ? 'active' : ''}">Inspeccion</span>
+              <span class="stage-pill ${(line.errors || []).length ? 'error' : ''}">Errores ${(line.errors || []).length}</span>
               <span class="stage-pill ${line.classified ? 'active' : ''}">Clasificacion</span>
             </div>
+            ${comparisonHtml}
             <div class="band-grid">
               ${bandHtml}
             </div>
@@ -575,6 +749,26 @@
         pushActivity('Pedido creado', `Orden ${orderId} recibida con ${order.lines.size} lineas.`);
       }
 
+      if (event === 'pedido.inspeccion.error') {
+        const line = ensureLine(order, data);
+        if (!line.startedAt) {
+          line.startedAt = eventTs;
+        }
+        line.inspected = false;
+        line.lastError = {
+          reason: data.reason,
+          expected: data.expected || {},
+          received: data.received || {},
+          faultyIdempotencyKey: data.faultyIdempotencyKey || null,
+          ts: eventTs
+        };
+        line.errors.push(line.lastError);
+        pushActivity(
+          'Error de medicion',
+          `Orden ${orderId} linea ${line.id}: ${reasonLabel(data.reason)}. Se vuelve a generar el producto.`
+        );
+      }
+
       if (event === 'pedido.inspeccionado') {
         order.inspected = true;
         const line = ensureLine(order, data);
@@ -582,7 +776,8 @@
         if (!line.startedAt) {
           line.startedAt = eventTs;
         }
-        pushActivity('Inspeccion completa', `Linea ${line.id} de orden ${orderId} inspeccionada.`);
+        const correction = (line.errors || []).length ? ' tras reproceso' : '';
+        pushActivity('Inspeccion completa', `Linea ${line.id} de orden ${orderId} inspeccionada${correction}.`);
       }
 
       if (event === 'pedido.avance') {

@@ -31,9 +31,16 @@ Variables de entorno soportadas:
 - `SIM_PROGRESS_DELAY_SEC`
 - `SIM_STAGE_DELAY_SEC`
 - `SIM_BAND_COUNT` (default: 5)
+- `SIM_MEASUREMENT_ERROR_RATE` (default: 0.25, usa 1 para forzar error)
+- `SIM_MEASUREMENT_ERROR_TOPIC` (default: productos/mediciones/errores)
+- `SIM_REWORK_DELAY_SEC` (default: 2)
 - `SIM_UI_HOST` (default: 0.0.0.0)
 - `SIM_UI_PORT` (default: 5055)
 - `SIM_UI_MAX_EVENTS` (default: 200)
+
+Cuando se inyecta un error, el emulador publica primero una medicion defectuosa
+en `productos/mediciones`, avisa en `productos/mediciones/errores` y luego
+publica una medicion corregida para que el pedido continue su flujo.
 
 ## UI del emulador
 

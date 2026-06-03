@@ -12,6 +12,7 @@ const buildService = () => {
     getById: jest.fn()
   };
   const orderLinesRepository = {
+    getById: jest.fn(),
     applyMeasurementProgress: jest.fn()
   };
   const measurementRealtimeService = {
@@ -19,7 +20,8 @@ const buildService = () => {
     emitCritical: jest.fn().mockResolvedValue({ delivered: true, attempts: 1 })
   };
   const ordersService = {
-    recomputeAndPersistStatus: jest.fn().mockResolvedValue(undefined)
+    recomputeAndPersistStatus: jest.fn().mockResolvedValue(undefined),
+    publishOrderProgress: jest.fn().mockResolvedValue(undefined)
   };
 
   return {
@@ -59,6 +61,11 @@ describe('integration measurement progress application', () => {
       estado_actual: 'EN_PROCESO'
     });
     ordersRepository.getById.mockResolvedValueOnce({ id: 22, cliente_id: 10, estado: 'EN_PROCESO' });
+    orderLinesRepository.getById.mockResolvedValueOnce({
+      id: 9,
+      pedido_id: 22,
+      modelo_producto_id: 5
+    });
     measurementsRepository.findByIdempotencyKey.mockResolvedValueOnce(null);
     measurementsRepository.create.mockResolvedValueOnce({
       id: 900,
@@ -90,12 +97,18 @@ describe('integration measurement progress application', () => {
 
     expect(result.duplicate).toBe(false);
     expect(result.progressApplied).toEqual({ deltaProcesadas: 1, deltaRechazadas: 0 });
+    expect(orderLinesRepository.getById).toHaveBeenCalledWith(9);
     expect(orderLinesRepository.applyMeasurementProgress).toHaveBeenCalledWith({
       lineId: 9,
       deltaProcesadas: 1,
       deltaRechazadas: 0
     });
     expect(ordersService.recomputeAndPersistStatus).toHaveBeenCalledWith({ orderId: 22, io: null });
+    expect(ordersService.publishOrderProgress).toHaveBeenCalledWith({
+      orderId: 22,
+      actor: { role: 'operator', sub: '88' },
+      reason: 'measurement_applied'
+    });
     expect(measurementRealtimeService.emitCritical).toHaveBeenCalledWith(
       null,
       'measurement.progress.applied.v1',
@@ -147,6 +160,52 @@ describe('integration measurement progress application', () => {
         actorClienteId: 17
       })
     );
+    expect(orderLinesRepository.applyMeasurementProgress).not.toHaveBeenCalled();
+  });
+
+  test('rejects measurement when product model does not match order line', async () => {
+    const {
+      service,
+      measurementProcessesRepository,
+      measurementsRepository,
+      ordersRepository,
+      orderLinesRepository
+    } = buildService();
+
+    measurementProcessesRepository.getById.mockResolvedValueOnce({
+      id: 66,
+      pedido_id: 42,
+      linea_pedido_id: 12,
+      estado_actual: 'EN_PROCESO'
+    });
+    ordersRepository.getById.mockResolvedValueOnce({ id: 42, cliente_id: 10, estado: 'EN_PROCESO' });
+    orderLinesRepository.getById.mockResolvedValueOnce({
+      id: 12,
+      pedido_id: 42,
+      modelo_producto_id: 7
+    });
+
+    await expect(service.registerMeasurement({
+      processId: 66,
+      modeloProductoId: 8,
+      idempotencyKey: 'station-1-run-44-sample-001',
+      qrOk: true,
+      pesoOk: true,
+      colorOk: true,
+      alturaOk: true,
+      actor: { role: 'operator', sub: '88' },
+      io: null
+    })).rejects.toMatchObject({
+      code: 'MEASUREMENT_PRODUCT_MISMATCH',
+      details: {
+        expectedModeloProductoId: 7,
+        receivedModeloProductoId: 8,
+        lineId: 12
+      }
+    });
+
+    expect(measurementsRepository.findByIdempotencyKey).not.toHaveBeenCalled();
+    expect(measurementsRepository.create).not.toHaveBeenCalled();
     expect(orderLinesRepository.applyMeasurementProgress).not.toHaveBeenCalled();
   });
 });

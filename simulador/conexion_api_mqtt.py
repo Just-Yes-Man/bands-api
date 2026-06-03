@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import random
 import threading
 import time
 from typing import Any, Dict
@@ -12,6 +13,8 @@ import paho.mqtt.client as mqtt
 
 from simulador.logica_simulador import (
     build_avance_event,
+    build_faulty_measurement_event,
+    build_measurement_error_event,
     build_measurement_event,
     extract_order_detail,
     normalize_line,
@@ -27,10 +30,16 @@ DEFAULT_PASSWORD = os.getenv("MQTT_PASSWORD")
 TOPIC_PEDIDOS_CREACION = "pedidos/creacion"
 TOPIC_PEDIDOS_AVANCES = "pedidos/avances"
 TOPIC_MEDICIONES = "productos/mediciones"
+TOPIC_ERRORES_MEDICION = os.getenv(
+    "SIM_MEASUREMENT_ERROR_TOPIC",
+    "productos/mediciones/errores",
+)
 
 PROGRESS_DELAY_SEC = float(os.getenv("SIM_PROGRESS_DELAY_SEC", "0.75"))
 STAGE_DELAY_SEC = float(os.getenv("SIM_STAGE_DELAY_SEC", "20"))
 BAND_COUNT = int(os.getenv("SIM_BAND_COUNT", "5"))
+MEASUREMENT_ERROR_RATE = float(os.getenv("SIM_MEASUREMENT_ERROR_RATE", "0.25"))
+REWORK_DELAY_SEC = float(os.getenv("SIM_REWORK_DELAY_SEC", "2"))
 
 
 def split_counts(total: int, bands: int) -> list[int]:
@@ -121,6 +130,48 @@ def simulate_order(client: mqtt.Client, order_id: Any, lineas: list[Dict[str, An
         if not line_id or not modelo_producto_id or cantidad <= 0:
             continue
 
+        inject_error = random_error_enabled()
+        if inject_error:
+            faulty_medicion = build_faulty_measurement_event(
+                order_id,
+                line_id,
+                modelo_producto_id,
+                TOPIC_PEDIDOS_CREACION,
+            )
+            error_event = build_measurement_error_event(
+                order_id,
+                line_id,
+                modelo_producto_id,
+                faulty_medicion,
+            )
+            faulty_payload = json.dumps(faulty_medicion, ensure_ascii=False)
+            faulty_result = client.publish(TOPIC_MEDICIONES, faulty_payload, qos=1)
+            if faulty_result.rc == mqtt.MQTT_ERR_SUCCESS:
+                print(f"[TX] {TOPIC_MEDICIONES} -> {faulty_payload}")
+                HUB.emit(
+                    "pedido.inspeccion.error",
+                    {
+                        "orderId": order_id,
+                        "lineaPedidoId": line_id,
+                        "modeloProductoId": modelo_producto_id,
+                        "reason": faulty_medicion.get("faultType"),
+                        "expected": error_event.get("expected"),
+                        "received": error_event.get("received"),
+                        "faultyIdempotencyKey": error_event.get("faultyIdempotencyKey"),
+                    },
+                )
+            else:
+                print(f"[ERROR] Falló publicación ({faulty_result.rc})")
+
+            error_payload = json.dumps(error_event, ensure_ascii=False)
+            error_result = client.publish(TOPIC_ERRORES_MEDICION, error_payload, qos=1)
+            if error_result.rc == mqtt.MQTT_ERR_SUCCESS:
+                print(f"[TX] {TOPIC_ERRORES_MEDICION} -> {error_payload}")
+            else:
+                print(f"[ERROR] Falló publicación ({error_result.rc})")
+
+            time.sleep(REWORK_DELAY_SEC)
+
         medicion = build_measurement_event(
             order_id,
             line_id,
@@ -201,6 +252,11 @@ def simulate_order(client: mqtt.Client, order_id: Any, lineas: list[Dict[str, An
                 "ok": True,
             },
         )
+
+
+def random_error_enabled() -> bool:
+    rate = max(0.0, min(1.0, MEASUREMENT_ERROR_RATE))
+    return random.random() < rate
 
 
 def build_client(client_id: str, username: str | None, password: str | None) -> mqtt.Client:

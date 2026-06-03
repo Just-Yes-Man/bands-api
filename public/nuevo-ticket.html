@@ -126,6 +126,40 @@
         background: #ef4444;
         color: #fff;
       }
+      .error-summary {
+        display: grid;
+        gap: 8px;
+      }
+      .error-count {
+        display: inline-flex;
+        width: fit-content;
+        padding: 4px 10px;
+        border-radius: 999px;
+        background: #7f1d1d;
+        color: #fecaca;
+        font-weight: 700;
+      }
+      .comparison {
+        display: grid;
+        grid-template-columns: minmax(90px, 0.8fr) minmax(80px, 1fr) minmax(80px, 1fr);
+        gap: 6px;
+        margin-top: 8px;
+      }
+      .comparison span {
+        border-radius: 8px;
+        background: #020617;
+        border: 1px solid #334155;
+        padding: 7px 8px;
+        overflow-wrap: anywhere;
+      }
+      .comparison .head {
+        color: #bfdbfe;
+        font-weight: 700;
+      }
+      .comparison .bad {
+        border-color: #ef4444;
+        color: #fecaca;
+      }
     </style>
   </head>
   <body>
@@ -237,6 +271,8 @@
         <div id="lineProgress" class="metric">-</div>
         <label>Mediciones generadas</label>
         <div id="measurementList" class="metric">-</div>
+        <label>Errores de medición</label>
+        <div id="measurementErrors" class="metric">Sin errores.</div>
       </section>
     </div>
     <script src="/socket.io/socket.io.js"></script>
