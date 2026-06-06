@@ -47,6 +47,7 @@ class EmqxOrdersConsumer {
       const topics = [
         env.EMQX_ORDERS_PROGRESS_TOPIC || "pedidos/avances",
         env.EMQX_MEASUREMENTS_TOPIC || "productos/mediciones",
+        env.EMQX_MEASUREMENT_ERRORS_TOPIC || "productos/mediciones/errores",
       ];
 
       const qos = Number.isFinite(env.EMQX_QOS) ? env.EMQX_QOS : 1;
@@ -102,6 +103,14 @@ class EmqxOrdersConsumer {
 
     if (topic === (env.EMQX_MEASUREMENTS_TOPIC || "productos/mediciones")) {
       await this.handleMeasurement(payload);
+      return;
+    }
+
+    if (
+      topic ===
+      (env.EMQX_MEASUREMENT_ERRORS_TOPIC || "productos/mediciones/errores")
+    ) {
+      this.handleMeasurementError(payload);
     }
   }
 
@@ -204,6 +213,45 @@ class EmqxOrdersConsumer {
       io: this.io,
       applyProgress: false,
     });
+  }
+
+  handleMeasurementError(payload) {
+    const event = payload.event || payload.evento;
+    if (event && event !== "producto.medicion.error") {
+      return;
+    }
+
+    const orderId = this.asNumber(
+      payload.pedidoId || payload.orderId || payload.order?.id,
+    );
+    const lineId = this.asNumber(
+      payload.lineaPedidoId || payload.lineId || payload.line?.id,
+    );
+
+    logger.warn("emqx.consumer.measurement.error_notice", {
+      orderId,
+      lineId,
+      reason: payload.reason || payload.razon || "measurement_error",
+    });
+
+    if (this.io) {
+      this.io.of(env.MEASUREMENT_REALTIME_NAMESPACE || "/realtime/v1").emit(
+        "measurement.error.v1",
+        {
+          orderId,
+          lineId,
+          modeloProductoId:
+            this.asNumber(
+              payload.modeloProductoId || payload.productoId || payload.product?.id,
+            ) || null,
+          reason: payload.reason || payload.razon || "measurement_error",
+          expected: payload.expected || null,
+          received: payload.received || null,
+          faultyIdempotencyKey: payload.faultyIdempotencyKey || null,
+          occurredAt: payload.occurredAt || new Date().toISOString(),
+        },
+      );
+    }
   }
 
   async resolveProcess({ orderId, lineId }) {

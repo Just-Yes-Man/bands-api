@@ -57,6 +57,8 @@ module.exports = {
     process.env.EMQX_ORDERS_PROGRESS_TOPIC || "pedidos/avances",
   EMQX_MEASUREMENTS_TOPIC:
     process.env.EMQX_MEASUREMENTS_TOPIC || "productos/mediciones",
+  EMQX_MEASUREMENT_ERRORS_TOPIC:
+    process.env.EMQX_MEASUREMENT_ERRORS_TOPIC || "productos/mediciones/errores",
 
   MEASUREMENT_REALTIME_NAMESPACE:
     process.env.MEASUREMENT_REALTIME_NAMESPACE || "/realtime/v1",

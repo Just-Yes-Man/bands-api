@@ -138,6 +138,8 @@ def build_measurement_event(
     line_id: Any,
     modelo_producto_id: Any,
     origen_topic: str,
+    *,
+    idempotency_suffix: str | None = None,
 ) -> Dict[str, Any]:
     base = build_mediciones(
         {
@@ -154,7 +156,11 @@ def build_measurement_event(
             "pedidoId": order_id,
             "lineaPedidoId": line_id,
             "modeloProductoId": modelo_producto_id,
-            "idempotencyKey": f"mqtt-{order_id}-{line_id}",
+            "idempotencyKey": build_idempotency_key(
+                order_id,
+                line_id,
+                idempotency_suffix,
+            ),
             "qrOk": True,
             "pesoOk": True,
             "colorOk": True,
@@ -163,3 +169,90 @@ def build_measurement_event(
     )
 
     return base
+
+
+def build_idempotency_key(
+    order_id: Any,
+    line_id: Any,
+    suffix: str | None = None,
+) -> str:
+    base = f"mqtt-{order_id}-{line_id}"
+    if suffix:
+        return f"{base}-{suffix}"
+    return base
+
+
+def build_faulty_measurement_event(
+    order_id: Any,
+    line_id: Any,
+    modelo_producto_id: Any,
+    origen_topic: str,
+) -> Dict[str, Any]:
+    fault_type = random.choice(["wrong_product", "bad_attributes"])
+
+    medicion = build_measurement_event(
+        order_id,
+        line_id,
+        modelo_producto_id,
+        origen_topic,
+        idempotency_suffix=f"fault-{fault_type.replace('_', '-')}",
+    )
+    medicion["faultInjected"] = True
+    medicion["faultType"] = fault_type
+
+    if fault_type == "wrong_product":
+        medicion["modeloProductoId"] = build_wrong_model_id(modelo_producto_id)
+        medicion["productoId"] = medicion["modeloProductoId"]
+        return medicion
+
+    failed_attr = random.choice(["qrOk", "pesoOk", "colorOk", "alturaOk"])
+    medicion[failed_attr] = False
+    medicion["failedAttribute"] = failed_attr
+    return medicion
+
+
+def build_measurement_error_event(
+    order_id: Any,
+    line_id: Any,
+    modelo_producto_id: Any,
+    faulty_measurement: Dict[str, Any],
+) -> Dict[str, Any]:
+    return {
+        "event": "producto.medicion.error",
+        "source": "emulador",
+        "occurredAt": now_iso(),
+        "pedidoId": order_id,
+        "lineaPedidoId": line_id,
+        "modeloProductoId": modelo_producto_id,
+        "reason": faulty_measurement.get("faultType") or "measurement_error",
+        "faultyIdempotencyKey": faulty_measurement.get("idempotencyKey"),
+        "expected": build_expected_measurement(modelo_producto_id),
+        "received": build_received_measurement(faulty_measurement),
+    }
+
+
+def build_wrong_model_id(modelo_producto_id: Any) -> Any:
+    try:
+        return int(modelo_producto_id) + 1000
+    except (TypeError, ValueError):
+        return f"{modelo_producto_id}-incorrecto"
+
+
+def build_expected_measurement(modelo_producto_id: Any) -> Dict[str, Any]:
+    return {
+        "modeloProductoId": modelo_producto_id,
+        "qrOk": True,
+        "pesoOk": True,
+        "colorOk": True,
+        "alturaOk": True,
+    }
+
+
+def build_received_measurement(faulty_measurement: Dict[str, Any]) -> Dict[str, Any]:
+    return {
+        "modeloProductoId": faulty_measurement.get("modeloProductoId"),
+        "qrOk": faulty_measurement.get("qrOk"),
+        "pesoOk": faulty_measurement.get("pesoOk"),
+        "colorOk": faulty_measurement.get("colorOk"),
+        "alturaOk": faulty_measurement.get("alturaOk"),
+    }

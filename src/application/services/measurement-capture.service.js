@@ -58,6 +58,11 @@ class MeasurementCaptureService {
       throw asMeasurementError("PROCESS_TERMINAL");
     }
 
+    await this.assertMeasuredProductMatchesOrderLine({
+      process,
+      modeloProductoId,
+    });
+
     const normalizedKey = normalizeIdempotencyKey(idempotencyKey);
     if (!isValidIdempotencyKey(normalizedKey)) {
       throw asMeasurementError("MEASUREMENT_IDEMPOTENCY_INVALID");
@@ -244,6 +249,31 @@ class MeasurementCaptureService {
     }
 
     throw asMeasurementError("PROCESS_FORBIDDEN");
+  }
+
+  async assertMeasuredProductMatchesOrderLine({ process, modeloProductoId }) {
+    if (!process.linea_pedido_id) {
+      return;
+    }
+
+    const line = await this.orderLinesRepository.getById(
+      Number(process.linea_pedido_id),
+    );
+    if (!line) {
+      throw asMeasurementError("PROCESS_LINE_NOT_FOUND");
+    }
+
+    if (Number(line.pedido_id) !== Number(process.pedido_id)) {
+      throw asMeasurementError("PROCESS_RELATION_INVALID");
+    }
+
+    if (Number(line.modelo_producto_id) !== Number(modeloProductoId)) {
+      throw asMeasurementError("MEASUREMENT_PRODUCT_MISMATCH", {
+        expectedModeloProductoId: Number(line.modelo_producto_id),
+        receivedModeloProductoId: Number(modeloProductoId),
+        lineId: Number(line.id),
+      });
+    }
   }
 }
 

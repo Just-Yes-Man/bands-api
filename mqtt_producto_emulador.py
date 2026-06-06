@@ -34,9 +34,15 @@ DEFAULT_PASSWORD = os.getenv("MQTT_PASSWORD")
 TOPIC_PEDIDOS_CREACION = "pedidos/creacion"
 TOPIC_PEDIDOS_AVANCES = "pedidos/avances"
 TOPIC_MEDICIONES = "productos/mediciones"
+TOPIC_ERRORES_MEDICION = os.getenv(
+    "SIM_MEASUREMENT_ERROR_TOPIC",
+    "productos/mediciones/errores",
+)
 
 PROGRESS_DELAY_SEC = float(os.getenv("SIM_PROGRESS_DELAY_SEC", "0.35"))
 STAGE_DELAY_SEC = float(os.getenv("SIM_STAGE_DELAY_SEC", "15"))
+MEASUREMENT_ERROR_RATE = float(os.getenv("SIM_MEASUREMENT_ERROR_RATE", "0.25"))
+REWORK_DELAY_SEC = float(os.getenv("SIM_REWORK_DELAY_SEC", "2"))
 
 
 running = True
@@ -168,6 +174,8 @@ def build_measurement_event(
     line_id: Any,
     modelo_producto_id: Any,
     origen_topic: str,
+    *,
+    idempotency_suffix: str | None = None,
 ) -> Dict[str, Any]:
     base = build_mediciones(
         {
@@ -184,7 +192,11 @@ def build_measurement_event(
             "pedidoId": order_id,
             "lineaPedidoId": line_id,
             "modeloProductoId": modelo_producto_id,
-            "idempotencyKey": f"mqtt-{order_id}-{line_id}",
+            "idempotencyKey": build_idempotency_key(
+                order_id,
+                line_id,
+                idempotency_suffix,
+            ),
             "qrOk": True,
             "pesoOk": True,
             "colorOk": True,
@@ -193,6 +205,93 @@ def build_measurement_event(
     )
 
     return base
+
+
+def build_idempotency_key(
+    order_id: Any,
+    line_id: Any,
+    suffix: str | None = None,
+) -> str:
+    base = f"mqtt-{order_id}-{line_id}"
+    if suffix:
+        return f"{base}-{suffix}"
+    return base
+
+
+def build_faulty_measurement_event(
+    order_id: Any,
+    line_id: Any,
+    modelo_producto_id: Any,
+    origen_topic: str,
+) -> Dict[str, Any]:
+    fault_type = random.choice(["wrong_product", "bad_attributes"])
+    medicion = build_measurement_event(
+        order_id,
+        line_id,
+        modelo_producto_id,
+        origen_topic,
+        idempotency_suffix=f"fault-{fault_type.replace('_', '-')}",
+    )
+    medicion["faultInjected"] = True
+    medicion["faultType"] = fault_type
+
+    if fault_type == "wrong_product":
+        wrong_model = build_wrong_model_id(modelo_producto_id)
+        medicion["modeloProductoId"] = wrong_model
+        medicion["productoId"] = wrong_model
+        return medicion
+
+    failed_attr = random.choice(["qrOk", "pesoOk", "colorOk", "alturaOk"])
+    medicion[failed_attr] = False
+    medicion["failedAttribute"] = failed_attr
+    return medicion
+
+
+def build_measurement_error_event(
+    order_id: Any,
+    line_id: Any,
+    modelo_producto_id: Any,
+    faulty_measurement: Dict[str, Any],
+) -> Dict[str, Any]:
+    return {
+        "event": "producto.medicion.error",
+        "source": "emulador",
+        "occurredAt": now_iso(),
+        "pedidoId": order_id,
+        "lineaPedidoId": line_id,
+        "modeloProductoId": modelo_producto_id,
+        "reason": faulty_measurement.get("faultType") or "measurement_error",
+        "faultyIdempotencyKey": faulty_measurement.get("idempotencyKey"),
+        "expected": build_expected_measurement(modelo_producto_id),
+        "received": build_received_measurement(faulty_measurement),
+    }
+
+
+def build_wrong_model_id(modelo_producto_id: Any) -> Any:
+    try:
+        return int(modelo_producto_id) + 1000
+    except (TypeError, ValueError):
+        return f"{modelo_producto_id}-incorrecto"
+
+
+def build_expected_measurement(modelo_producto_id: Any) -> Dict[str, Any]:
+    return {
+        "modeloProductoId": modelo_producto_id,
+        "qrOk": True,
+        "pesoOk": True,
+        "colorOk": True,
+        "alturaOk": True,
+    }
+
+
+def build_received_measurement(faulty_measurement: Dict[str, Any]) -> Dict[str, Any]:
+    return {
+        "modeloProductoId": faulty_measurement.get("modeloProductoId"),
+        "qrOk": faulty_measurement.get("qrOk"),
+        "pesoOk": faulty_measurement.get("pesoOk"),
+        "colorOk": faulty_measurement.get("colorOk"),
+        "alturaOk": faulty_measurement.get("alturaOk"),
+    }
 
 
 def on_connect(client: mqtt.Client, _userdata: Any, _flags: Dict[str, Any], rc: int):
@@ -239,6 +338,35 @@ def simulate_order(client: mqtt.Client, order_id: Any, lineas: list[Dict[str, An
         if not line_id or not modelo_producto_id or cantidad <= 0:
             continue
 
+        if random_error_enabled():
+            faulty_medicion = build_faulty_measurement_event(
+                order_id,
+                line_id,
+                modelo_producto_id,
+                TOPIC_PEDIDOS_CREACION,
+            )
+            faulty_payload = json.dumps(faulty_medicion, ensure_ascii=False)
+            faulty_result = client.publish(TOPIC_MEDICIONES, faulty_payload, qos=1)
+            if faulty_result.rc == mqtt.MQTT_ERR_SUCCESS:
+                print(f"[TX] {TOPIC_MEDICIONES} -> {faulty_payload}")
+            else:
+                print(f"[ERROR] Falló publicación ({faulty_result.rc})")
+
+            error_event = build_measurement_error_event(
+                order_id,
+                line_id,
+                modelo_producto_id,
+                faulty_medicion,
+            )
+            error_payload = json.dumps(error_event, ensure_ascii=False)
+            error_result = client.publish(TOPIC_ERRORES_MEDICION, error_payload, qos=1)
+            if error_result.rc == mqtt.MQTT_ERR_SUCCESS:
+                print(f"[TX] {TOPIC_ERRORES_MEDICION} -> {error_payload}")
+            else:
+                print(f"[ERROR] Falló publicación ({error_result.rc})")
+
+            time.sleep(REWORK_DELAY_SEC)
+
         medicion = build_measurement_event(
             order_id,
             line_id,
@@ -272,6 +400,11 @@ def simulate_order(client: mqtt.Client, order_id: Any, lineas: list[Dict[str, An
                 print(f"[ERROR] Falló publicación ({avance_result.rc})")
 
             time.sleep(PROGRESS_DELAY_SEC)
+
+
+def random_error_enabled() -> bool:
+    rate = max(0.0, min(1.0, MEASUREMENT_ERROR_RATE))
+    return random.random() < rate
 
 
 def build_client(client_id: str, username: str | None, password: str | None) -> mqtt.Client:

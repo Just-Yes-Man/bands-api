@@ -8,6 +8,7 @@ const MEASUREMENT_ERRORS = {
   PROCESS_ORDER_NOT_FOUND: { code: 'PROCESS_ORDER_NOT_FOUND', message: 'Pedido no encontrado', statusCode: 404 },
   PROCESS_ORDER_BLOCKED: { code: 'PROCESS_ORDER_BLOCKED', message: 'El pedido no permite actualizaciones por medicion', statusCode: 409 },
   PROCESS_LINE_NOT_FOUND: { code: 'PROCESS_LINE_NOT_FOUND', message: 'Linea de pedido no encontrada', statusCode: 404 },
+  MEASUREMENT_PRODUCT_MISMATCH: { code: 'MEASUREMENT_PRODUCT_MISMATCH', message: 'El producto medido no coincide con la linea del pedido', statusCode: 409 },
   MEASUREMENT_DUPLICATE: { code: 'MEASUREMENT_DUPLICATE', message: 'Medicion duplicada por idempotency key', statusCode: 409 },
   MEASUREMENT_IDEMPOTENCY_INVALID: { code: 'MEASUREMENT_IDEMPOTENCY_INVALID', message: 'idempotencyKey invalida', statusCode: 400 },
   MEASUREMENT_VALIDATION_ERROR: { code: 'MEASUREMENT_VALIDATION_ERROR', message: 'Payload de medicion invalido', statusCode: 400 }
