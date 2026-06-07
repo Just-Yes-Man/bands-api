@@ -47,6 +47,7 @@ module.exports = {
   ),
   EMQX_ENABLED: asBool(process.env.EMQX_ENABLED, false),
   EMQX_URL: process.env.EMQX_URL || "mqtt://localhost:1883",
+  EMQX_WS_URL: process.env.EMQX_WS_URL || "wss://localhost:8084/mqtt",
   EMQX_USERNAME: process.env.EMQX_USERNAME,
   EMQX_PASSWORD: process.env.EMQX_PASSWORD,
   EMQX_CLIENT_ID: process.env.EMQX_CLIENT_ID,

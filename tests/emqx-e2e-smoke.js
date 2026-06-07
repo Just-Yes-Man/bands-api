@@ -1,18 +1,36 @@
+const path = require('path');
 const mqtt = require('mqtt');
 const { Pool } = require('pg');
+
+require('dotenv').config({ path: path.resolve(__dirname, '..', '.env') });
 
 const baseUrl = process.env.SMOKE_BASE_URL || 'http://localhost:1200/api/v1';
 const topic = 'pedidos/creacion';
 
-const pool = new Pool({
-  host: process.env.SMOKE_PGHOST || 'localhost',
-  port: Number(process.env.SMOKE_PGPORT || 5432),
-  database: process.env.SMOKE_PGDATABASE || 'conveyor',
-  user: process.env.SMOKE_PGUSER || 'postgres',
-  password: process.env.SMOKE_PGPASSWORD || 'postgres'
-});
+const normalizeConnectionString = (rawUrl) => {
+  const parsed = new URL(rawUrl);
+  if (parsed.searchParams.get('sslmode') === 'require') {
+    parsed.searchParams.set('sslmode', 'no-verify');
+  }
+  return parsed.toString();
+};
 
-const mqttUrl = process.env.SMOKE_MQTT_URL || 'mqtt://localhost:1884';
+const databaseUrl = process.env.SMOKE_DATABASE_URL || process.env.DATABASE_URL;
+
+const pool = databaseUrl
+  ? new Pool({
+      connectionString: normalizeConnectionString(databaseUrl),
+      ssl: { rejectUnauthorized: false }
+    })
+  : new Pool({
+      host: process.env.SMOKE_PGHOST || 'localhost',
+      port: Number(process.env.SMOKE_PGPORT || 5432),
+      database: process.env.SMOKE_PGDATABASE || 'conveyor',
+      user: process.env.SMOKE_PGUSER || 'postgres',
+      password: process.env.SMOKE_PGPASSWORD || 'postgres'
+    });
+
+const mqttUrl = process.env.SMOKE_MQTT_URL || process.env.EMQX_URL || 'mqtt://localhost:1884';
 
 const jsonReq = async (url, options = {}) => {
   const res = await fetch(url, {
@@ -80,7 +98,12 @@ const jsonReq = async (url, options = {}) => {
 
     const mqttMessagePromise = new Promise((resolve, reject) => {
       const timeout = setTimeout(() => reject(new Error('Timeout esperando mensaje MQTT')), 15000);
-      mqttClient = mqtt.connect(mqttUrl);
+      mqttClient = mqtt.connect(mqttUrl, {
+        username: process.env.SMOKE_MQTT_USERNAME || process.env.EMQX_USERNAME,
+        password: process.env.SMOKE_MQTT_PASSWORD || process.env.EMQX_PASSWORD,
+        reconnectPeriod: 3000,
+        connectTimeout: 10000
+      });
 
       mqttClient.on('connect', () => {
         mqttClient.subscribe(topic, { qos: 1 }, (err) => {

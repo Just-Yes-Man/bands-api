@@ -22,12 +22,19 @@ Desde la raíz del repo:
 python3 -m simulador.main --broker localhost --port 1883
 ```
 
+Para un broker MQTT con TLS:
+
+```bash
+MQTT_TLS=true python3 -m simulador.main --broker <host> --port 8883 --username <user> --password <password>
+```
+
 Variables de entorno soportadas:
 
 - `MQTT_BROKER`
 - `MQTT_PORT`
 - `MQTT_USERNAME`
 - `MQTT_PASSWORD`
+- `MQTT_TLS` (`true` para brokers TLS, por ejemplo puerto 8883)
 - `SIM_PROGRESS_DELAY_SEC`
 - `SIM_STAGE_DELAY_SEC`
 - `SIM_BAND_COUNT` (default: 5)

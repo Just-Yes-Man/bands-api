@@ -1,7 +1,19 @@
+const path = require('path');
 const mqtt = require('mqtt');
 
+require('dotenv').config({ path: path.resolve(__dirname, '..', '.env') });
+
 const baseUrl = process.env.SMOKE_BASE_URL || 'http://localhost:1200/api/v1';
-const mqttUrl = process.env.SMOKE_MQTT_URL || 'mqtt://localhost:1883';
+const mqttUrl = process.env.SMOKE_MQTT_URL || process.env.EMQX_URL || 'mqtt://localhost:1883';
+const databaseUrl = process.env.SMOKE_DATABASE_URL || process.env.DATABASE_URL;
+
+const normalizeConnectionString = (rawUrl) => {
+  const parsed = new URL(rawUrl);
+  if (parsed.searchParams.get('sslmode') === 'require') {
+    parsed.searchParams.set('sslmode', 'no-verify');
+  }
+  return parsed.toString();
+};
 
 const jsonReq = async (url, options = {}) => {
   const res = await fetch(url, {
@@ -54,7 +66,12 @@ const jsonReq = async (url, options = {}) => {
     const token = login.body.data.token;
 
     const mqttReady = new Promise((resolve, reject) => {
-      mqttClient = mqtt.connect(mqttUrl);
+      mqttClient = mqtt.connect(mqttUrl, {
+        username: process.env.SMOKE_MQTT_USERNAME || process.env.EMQX_USERNAME,
+        password: process.env.SMOKE_MQTT_PASSWORD || process.env.EMQX_PASSWORD,
+        reconnectPeriod: 3000,
+        connectTimeout: 10000
+      });
       mqttClient.once('connect', () => {
         mqttClient.subscribe(topics, { qos: 1 }, (err) => {
           if (err) {
