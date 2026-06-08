@@ -46,7 +46,7 @@ def main() -> int:
     args = parse_args()
 
     ui_host = os.getenv("SIM_UI_HOST", "0.0.0.0")
-    ui_port = int(os.getenv("SIM_UI_PORT", "5055"))
+    ui_port = int(os.getenv("SIM_UI_PORT", os.getenv("PORT", "5055")))
 
     signal.signal(signal.SIGINT, handle_signal)
     signal.signal(signal.SIGTERM, handle_signal)

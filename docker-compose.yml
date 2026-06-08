@@ -1,7 +1,9 @@
 services:
-  app:
-    build: .
-    container_name: conveyor-app
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    container_name: conveyor-api
     ports:
       - "1200:1200"
     env_file:
@@ -21,3 +23,21 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     command: sh -c "npm run migrate && npm start"
+
+  emulator:
+    build:
+      context: .
+      dockerfile: Dockerfile.emulator
+    container_name: conveyor-emulator
+    env_file:
+      - .env
+    environment:
+      MQTT_BROKER: k12aa2fa.ala.us-east-1.emqxsl.com
+      MQTT_PORT: "8883"
+      MQTT_TLS: "true"
+      MQTT_USERNAME: admin
+      MQTT_PASSWORD: admin9988
+      SIM_UI_HOST: 0.0.0.0
+      SIM_UI_PORT: "5055"
+    ports:
+      - "5055:5055"

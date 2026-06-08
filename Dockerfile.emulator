@@ -1,0 +1,20 @@
+FROM python:3.12-slim
+
+WORKDIR /app
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    MQTT_BROKER=k12aa2fa.ala.us-east-1.emqxsl.com \
+    MQTT_PORT=8883 \
+    MQTT_TLS=true \
+    MQTT_USERNAME=admin \
+    MQTT_PASSWORD=admin9988
+
+COPY requirements-emulator.txt ./requirements-emulator.txt
+RUN pip install --no-cache-dir -r requirements-emulator.txt
+
+COPY simulador ./simulador
+
+EXPOSE 5055
+
+CMD ["python3", "-m", "simulador.main"]
