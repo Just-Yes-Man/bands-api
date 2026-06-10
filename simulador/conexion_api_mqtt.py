@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import random
+import ssl
 import threading
 import time
 from typing import Any, Dict
@@ -26,6 +27,7 @@ DEFAULT_BROKER = os.getenv("MQTT_BROKER", "localhost")
 DEFAULT_PORT = int(os.getenv("MQTT_PORT", "1883"))
 DEFAULT_USERNAME = os.getenv("MQTT_USERNAME")
 DEFAULT_PASSWORD = os.getenv("MQTT_PASSWORD")
+DEFAULT_TLS = os.getenv("MQTT_TLS", "false").lower() == "true"
 
 TOPIC_PEDIDOS_CREACION = "pedidos/creacion"
 TOPIC_PEDIDOS_AVANCES = "pedidos/avances"
@@ -259,10 +261,19 @@ def random_error_enabled() -> bool:
     return random.random() < rate
 
 
-def build_client(client_id: str, username: str | None, password: str | None) -> mqtt.Client:
+def build_client(
+    client_id: str,
+    username: str | None,
+    password: str | None,
+    use_tls: bool = False,
+) -> mqtt.Client:
     client = mqtt.Client(client_id=client_id, protocol=mqtt.MQTTv311)
     if username:
         client.username_pw_set(username, password=password)
+
+    if use_tls:
+        client.tls_set(cert_reqs=ssl.CERT_REQUIRED)
+        client.tls_insecure_set(False)
 
     client.on_connect = on_connect
     client.on_message = on_message

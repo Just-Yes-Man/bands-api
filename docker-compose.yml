@@ -1,45 +1,43 @@
 services:
-  app:
-    build: .
-    container_name: conveyor-app
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    container_name: conveyor-api
     ports:
       - "1200:1200"
     env_file:
       - .env
     environment:
-      DATABASE_URL: postgres://postgres:postgres@conveyor-postgres:5432/conveyor
-      PGHOST: conveyor-postgres
-      PGPORT: "5432"
-      PGDATABASE: conveyor
-      PGUSER: postgres
-      PGPASSWORD: postgres
-      PGSSL: "false"
+      PGHOST: ""
+      PGDATABASE: ""
+      PGUSER: ""
+      PGPASSWORD: ""
+      PGSSL: "true"
       EMQX_ENABLED: "true"
-      EMQX_URL: mqtt://host.docker.internal:1883
+      EMQX_URL: mqtts://k12aa2fa.ala.us-east-1.emqxsl.com:8883
+      EMQX_WS_URL: wss://k12aa2fa.ala.us-east-1.emqxsl.com:8084/mqtt
+      EMQX_USERNAME: admin
+      EMQX_PASSWORD: admin9988
       EMQX_ORDERS_PROGRESS_TOPIC: pedidos/avances
     extra_hosts:
       - "host.docker.internal:host-gateway"
-    depends_on:
-      postgres:
-        condition: service_healthy
     command: sh -c "npm run migrate && npm start"
 
-  postgres:
-    image: postgres:16-alpine
-    container_name: conveyor-postgres
+  emulator:
+    build:
+      context: .
+      dockerfile: Dockerfile.emulator
+    container_name: conveyor-emulator
+    env_file:
+      - .env
     environment:
-      POSTGRES_DB: conveyor
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      MQTT_BROKER: k12aa2fa.ala.us-east-1.emqxsl.com
+      MQTT_PORT: "8883"
+      MQTT_TLS: "true"
+      MQTT_USERNAME: admin
+      MQTT_PASSWORD: admin9988
+      SIM_UI_HOST: 0.0.0.0
+      SIM_UI_PORT: "5055"
     ports:
-      - "5432:5432"
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d conveyor"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    volumes:
-      - pgdata:/var/lib/postgresql/data
-
-volumes:
-  pgdata:
+      - "5055:5055"

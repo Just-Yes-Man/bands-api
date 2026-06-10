@@ -2,13 +2,14 @@ const { Pool } = require('pg');
 const env = require('../config/env');
 
 const hasDiscreteConfig = env.PGHOST && env.PGDATABASE && env.PGUSER;
+const hasConnectionString = Boolean(env.DATABASE_URL);
 
-if (!env.DATABASE_URL && !hasDiscreteConfig) {
+if (!hasConnectionString && !hasDiscreteConfig) {
   throw new Error('Configura DATABASE_URL o las variables PGHOST, PGDATABASE y PGUSER.');
 }
 
-const getSSLConfig = () => {
-  if (!env.PGSSL) {
+const getSSLConfig = (requiresSsl = false) => {
+  if (!env.PGSSL && !requiresSsl) {
     return false;
   }
   return { rejectUnauthorized: false };
@@ -16,25 +17,27 @@ const getSSLConfig = () => {
 
 const normalizeConnectionString = (rawUrl) => {
   const parsed = new URL(rawUrl);
-  if (env.PGSSL && parsed.searchParams.get('sslmode') === 'require') {
+  if (parsed.searchParams.get('sslmode') === 'require') {
     parsed.searchParams.set('sslmode', 'no-verify');
-  } else if (!env.PGSSL && parsed.searchParams.has('sslmode')) {
-    parsed.searchParams.delete('sslmode');
   }
   return parsed.toString();
 };
 
-const pool = hasDiscreteConfig
+const connectionStringRequiresSsl = hasConnectionString
+  ? new URL(env.DATABASE_URL).searchParams.get('sslmode') === 'require'
+  : false;
+
+const pool = hasConnectionString
   ? new Pool({
+      connectionString: normalizeConnectionString(env.DATABASE_URL),
+      ssl: getSSLConfig(connectionStringRequiresSsl)
+    })
+  : new Pool({
       host: env.PGHOST,
       port: env.PGPORT,
       database: env.PGDATABASE,
       user: env.PGUSER,
       password: env.PGPASSWORD,
-      ssl: getSSLConfig()
-    })
-  : new Pool({
-      connectionString: normalizeConnectionString(env.DATABASE_URL),
       ssl: getSSLConfig()
     });
 

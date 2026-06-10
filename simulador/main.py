@@ -15,6 +15,7 @@ from simulador.conexion_api_mqtt import (
     DEFAULT_BROKER,
     DEFAULT_PASSWORD,
     DEFAULT_PORT,
+    DEFAULT_TLS,
     DEFAULT_USERNAME,
     build_client,
 )
@@ -37,6 +38,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--client-id", default=f"emulador-producto-{random.randint(1000,9999)}")
     parser.add_argument("--username", default=DEFAULT_USERNAME)
     parser.add_argument("--password", default=DEFAULT_PASSWORD)
+    parser.add_argument("--tls", action="store_true", default=DEFAULT_TLS)
     return parser.parse_args()
 
 
@@ -44,19 +46,19 @@ def main() -> int:
     args = parse_args()
 
     ui_host = os.getenv("SIM_UI_HOST", "0.0.0.0")
-    ui_port = int(os.getenv("SIM_UI_PORT", "5055"))
+    ui_port = int(os.getenv("SIM_UI_PORT", os.getenv("PORT", "5055")))
 
     signal.signal(signal.SIGINT, handle_signal)
     signal.signal(signal.SIGTERM, handle_signal)
 
-    client = build_client(args.client_id, args.username, args.password)
+    client = build_client(args.client_id, args.username, args.password, use_tls=args.tls)
 
     start_ui_server(ui_host, ui_port)
     print(f"[INFO] UI disponible en http://{ui_host}:{ui_port}")
 
     print(
         f"[INFO] Iniciando emulador MQTT en {args.broker}:{args.port} "
-        f"(client-id={args.client_id})"
+        f"(client-id={args.client_id}, tls={args.tls})"
     )
 
     try:
