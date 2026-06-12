@@ -59,7 +59,7 @@ describe('emqx orders consumer measurement errors', () => {
     expect(measurementCaptureService.registerMeasurement).not.toHaveBeenCalled();
     expect(ordersService.applyExternalLineProgress).not.toHaveBeenCalled();
     expect(emit).toHaveBeenCalledWith(
-      'measurement.error.v1',
+      'pedido.inspeccion.error',
       {
         orderId: 10,
         lineId: 20,

@@ -302,7 +302,7 @@ const bindRealtimeHandlers = () => {
     }
   });
 
-  socket.on("measurement.error.v1", (payload) => {
+  socket.on("pedido.inspeccion.error", (payload) => {
     if (
       !tracking.orderId ||
       Number(payload.orderId) !== Number(tracking.orderId) ||

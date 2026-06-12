@@ -236,7 +236,7 @@ class EmqxOrdersConsumer {
 
     if (this.io) {
       this.io.of(env.MEASUREMENT_REALTIME_NAMESPACE || "/realtime/v1").emit(
-        "measurement.error.v1",
+        "pedido.inspeccion.error",
         {
           orderId,
           lineId,

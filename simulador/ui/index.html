@@ -1598,8 +1598,8 @@
     };
 
     const handleEvent = (payload) => {
-      const event = payload.event;
-      const data = payload.data || {};
+      const event = payload.event || payload.name;
+      const data = payload.data || payload;
       const eventTs = typeof payload.timestamp === 'number' ? payload.timestamp : Date.now() / 1000;
       const orderId = data.orderId || data.pedidoId || data.order_id;
       if (!orderId) return;

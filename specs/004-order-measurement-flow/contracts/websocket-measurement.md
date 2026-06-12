@@ -67,12 +67,17 @@
 
 ## Error Events
 
-### measurement.error.v1
+### pedido.inspeccion.error
 - Direction: server -> client
 - Payload:
-  - code (string)
-  - message (string)
-  - correlationId (string, optional)
+  - orderId (number)
+  - lineId (number)
+  - modeloProductoId (number, optional)
+  - reason (string)
+  - expected (object, optional)
+  - received (object, optional)
+  - faultyIdempotencyKey (string, optional)
+  - occurredAt (ISO timestamp)
 - Error policy:
   - Messages must avoid sensitive internal details.
   - JWT failures use generic auth semantics.
