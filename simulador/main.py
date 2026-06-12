@@ -17,6 +17,7 @@ from simulador.conexion_api_mqtt import (
     DEFAULT_PORT,
     DEFAULT_TLS,
     DEFAULT_USERNAME,
+    MqttConnectionSettings,
     build_client,
 )
 from simulador.ui_server import start_ui_server
@@ -51,7 +52,21 @@ def main() -> int:
     signal.signal(signal.SIGINT, handle_signal)
     signal.signal(signal.SIGTERM, handle_signal)
 
-    client = build_client(args.client_id, args.username, args.password, use_tls=args.tls)
+    connection_settings = MqttConnectionSettings(
+        broker=args.broker,
+        port=args.port,
+        username=args.username,
+        password=args.password,
+        use_tls=args.tls,
+    )
+
+    client = build_client(
+        args.client_id,
+        args.username,
+        args.password,
+        use_tls=args.tls,
+        user_data=connection_settings,
+    )
 
     start_ui_server(ui_host, ui_port)
     print(f"[INFO] UI disponible en http://{ui_host}:{ui_port}")
