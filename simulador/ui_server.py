@@ -172,19 +172,31 @@ def start_ui_server(host: str, port: int) -> ThreadingHTTPServer:
 
 def fetch_history() -> dict[str, Any]:
     query = urllib.parse.urlencode({"limit": HISTORY_LIMIT})
-    url = f"{API_BASE_URL.rstrip('/')}/simulator/orders/history?{query}"
-    request = urllib.request.Request(url, headers={"Accept": "application/json"})
-    try:
-        with urllib.request.urlopen(request, timeout=5) as response:
-            payload = response.read().decode("utf-8")
-            data = json.loads(payload)
-            if isinstance(data, dict):
-                return data
-            return {"ok": True, "data": []}
-    except urllib.error.HTTPError as exc:
-        detail = exc.read().decode("utf-8", errors="replace")
-        raise RuntimeError(
-            f"Historial no disponible en API ({exc.code}): {detail or exc.reason}"
-        ) from exc
-    except urllib.error.URLError as exc:
-        raise RuntimeError(f"No se pudo conectar con la API: {exc.reason}") from exc
+    errors: list[str] = []
+
+    for url in build_history_urls(query):
+        request = urllib.request.Request(url, headers={"Accept": "application/json"})
+        try:
+            with urllib.request.urlopen(request, timeout=5) as response:
+                payload = response.read().decode("utf-8")
+                data = json.loads(payload)
+                if isinstance(data, dict):
+                    return data
+                return {"ok": True, "data": []}
+        except urllib.error.HTTPError as exc:
+            detail = exc.read().decode("utf-8", errors="replace")
+            errors.append(
+                f"{url} -> API respondio {exc.code}: {detail or exc.reason}"
+            )
+        except urllib.error.URLError as exc:
+            errors.append(f"{url} -> No se pudo conectar: {exc.reason}")
+
+    raise RuntimeError(" ; ".join(errors))
+
+
+def build_history_urls(query: str) -> list[str]:
+    base = API_BASE_URL.rstrip("/")
+    candidates = [f"{base}/simulator/orders/history?{query}"]
+    if not base.endswith("/api/v1"):
+        candidates.insert(0, f"{base}/api/v1/simulator/orders/history?{query}")
+    return candidates

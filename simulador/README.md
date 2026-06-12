@@ -66,6 +66,10 @@ Cuando un pedido termina su clasificacion, sale de la vista activa de bandas
 para evitar acumulacion visual. Los pedidos anteriores quedan disponibles en el
 panel de historial, consultados desde la base de datos a traves de la API.
 
+`SIM_API_BASE_URL` acepta tanto la URL base del servicio
+(`https://bandas-api-latest.onrender.com`) como una URL que ya incluya
+`/api/v1`.
+
 URL por defecto:
 
 ```
