@@ -38,21 +38,33 @@ Variables de entorno soportadas:
 - `SIM_PROGRESS_DELAY_SEC`
 - `SIM_STAGE_DELAY_SEC`
 - `SIM_BAND_COUNT` (default: 5)
-- `SIM_MEASUREMENT_ERROR_RATE` (default: 0.25, usa 1 para forzar error)
 - `SIM_MEASUREMENT_ERROR_TOPIC` (default: productos/mediciones/errores)
 - `SIM_REWORK_DELAY_SEC` (default: 2)
 - `SIM_UI_HOST` (default: 0.0.0.0)
 - `SIM_UI_PORT` (default: 5055)
 - `SIM_UI_MAX_EVENTS` (default: 200)
+- `SIM_API_BASE_URL` (default: http://localhost:1200/api/v1)
+- `SIM_HISTORY_LIMIT` (default: 30)
 
 Cuando se inyecta un error, el emulador publica primero una medicion defectuosa
 en `productos/mediciones`, avisa en `productos/mediciones/errores` y luego
 publica una medicion corregida para que el pedido continue su flujo.
 
+Patron de errores:
+
+- Pedido 1: con error
+- Pedido 2: sin error
+- Pedido 3: sin error
+- Luego el ciclo se repite
+
 ## UI del emulador
 
 El emulador expone una UI web para visualizar la creacion, inspeccion y
 clasificacion de pedidos.
+
+Cuando un pedido termina su clasificacion, sale de la vista activa de bandas
+para evitar acumulacion visual. Los pedidos anteriores quedan disponibles en el
+panel de historial, consultados desde la base de datos a traves de la API.
 
 URL por defecto:
 

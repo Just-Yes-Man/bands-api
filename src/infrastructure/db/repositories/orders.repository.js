@@ -45,6 +45,30 @@ class OrdersRepository {
     };
   }
 
+  async listRecentWithProgress(limit = 20) {
+    const safeLimit = Math.max(1, Math.min(Number(limit) || 20, 100));
+    const result = await pool.query(
+      `SELECT
+         p.id,
+         p.cliente_id,
+         p.estado,
+         p.version,
+         p.created_at,
+         p.updated_at,
+         COUNT(lp.id)::int AS total_lineas,
+         COALESCE(SUM(lp.cantidad), 0)::int AS total_solicitadas,
+         COALESCE(SUM(lp.procesadas), 0)::int AS total_procesadas,
+         COALESCE(SUM(lp.rechazadas), 0)::int AS total_rechazadas
+       FROM pedidos p
+       LEFT JOIN lineas_pedido lp ON lp.pedido_id = p.id
+       GROUP BY p.id
+       ORDER BY p.updated_at DESC, p.id DESC
+       LIMIT $1`,
+      [safeLimit],
+    );
+    return result.rows;
+  }
+
   async transitionStatus({ orderId, status }) {
     const result = await pool.query(
       `UPDATE pedidos

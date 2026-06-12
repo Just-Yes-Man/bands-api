@@ -1,6 +1,7 @@
 const express = require('express');
 
 const { healthController } = require('../controllers/health.controller');
+const { listSimulatorHistoryController } = require('../controllers/simulator-history.controller');
 const { listProductModels, createProductModel } = require('../controllers/product-model.controller');
 const { createCheckpoint, getCheckpointById } = require('../controllers/checkpoint.controller');
 const { listMonitors, deactivateMonitor } = require('../controllers/process-monitor.controller');
@@ -15,6 +16,7 @@ const { measurementProcessRoutes } = require('./measurement-process.routes');
 const router = express.Router();
 
 router.get('/health', healthController);
+router.get('/simulator/orders/history', listSimulatorHistoryController);
 router.use('/auth', clientAuthRoutes);
 router.use('/protected', protectedRoutes);
 router.use('/', ordersRoutes);

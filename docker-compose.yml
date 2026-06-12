@@ -39,5 +39,6 @@ services:
       MQTT_PASSWORD: admin9988
       SIM_UI_HOST: 0.0.0.0
       SIM_UI_PORT: "5055"
+      SIM_API_BASE_URL: http://api:1200/api/v1
     ports:
       - "5055:5055"

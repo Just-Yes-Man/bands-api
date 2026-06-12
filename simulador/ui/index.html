@@ -1115,6 +1115,16 @@
       <section class="panel">
         <div class="panel-header">
           <div>
+            <h2>Historial de pedidos</h2>
+            <p>Pedidos anteriores consultados desde la base de datos, fuera de la vista activa de bandas.</p>
+          </div>
+        </div>
+        <div class="activity" id="history"></div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-header">
+          <div>
             <h2>Registro de planta</h2>
             <p>Eventos recientes de creacion, inspeccion, avance y clasificacion.</p>
           </div>
@@ -1127,10 +1137,15 @@
   <script>
     const orders = new Map();
     const activity = [];
+    let historyOrders = [];
+    let historyError = '';
     const BAND_COUNT = 5;
+    const ORDER_CLEAR_DELAY_MS = 4000;
+    const orderCleanupTimers = new Map();
 
     const ordersEl = document.getElementById('orders');
     const activityEl = document.getElementById('activity');
+    const historyEl = document.getElementById('history');
     const floorGridEl = document.getElementById('floorGrid');
     const statusText = document.getElementById('statusText');
     const statusDot = document.getElementById('statusDot');
@@ -1157,6 +1172,13 @@
       renderActivity();
     };
 
+    const formatDateTime = (value) => {
+      if (!value) return 'sin fecha';
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return 'sin fecha';
+      return date.toLocaleString();
+    };
+
     const ensureOrder = (orderId) => {
       if (!orders.has(orderId)) {
         orders.set(orderId, {
@@ -1166,6 +1188,22 @@
         });
       }
       return orders.get(orderId);
+    };
+
+    const scheduleOrderCleanup = (orderId, syncHistory) => {
+      const key = String(orderId);
+      if (orderCleanupTimers.has(key)) {
+        return;
+      }
+      const timerId = window.setTimeout(() => {
+        orderCleanupTimers.delete(key);
+        orders.delete(orderId);
+        renderOrders();
+        if (syncHistory) {
+          void loadHistory();
+        }
+      }, ORDER_CLEAR_DELAY_MS);
+      orderCleanupTimers.set(key, timerId);
     };
 
     const ensureLine = (order, line) => {
@@ -1233,15 +1271,6 @@
         measurement_error: 'Error de medicion'
       };
       return labels[reason] || reason || 'Error de medicion';
-    };
-
-    const laneIndexFor = (orderId, lineId) => {
-      const seed = `${orderId || ''}:${lineId || ''}`;
-      let hash = 0;
-      for (let i = 0; i < seed.length; i += 1) {
-        hash = (hash * 31 + seed.charCodeAt(i)) >>> 0;
-      }
-      return hash % BAND_COUNT;
     };
 
     const buildComparisonHtml = (line) => {
@@ -1359,21 +1388,39 @@
       return lines.sort((a, b) => Number(b.line.progress || 0) - Number(a.line.progress || 0));
     };
 
+    const buildBandAssignments = (orderId, line) => {
+      const targets = splitCounts(Number(line.cantidad || 0), BAND_COUNT);
+      return targets.map((target, index) => {
+        if (!target) return null;
+        const bandId = `banda-${index + 1}`;
+        const current = Number((line.bandProgress || {})[bandId] || 0);
+        return {
+          orderId,
+          bandId,
+          bandIndex: index,
+          target,
+          current: Math.min(target, current),
+          line
+        };
+      }).filter(Boolean);
+    };
+
     const renderFactoryFloor = () => {
       const activeLines = collectActiveLines();
       const lanes = Array.from({ length: BAND_COUNT }, (_, laneIdx) => {
-        const laneLines = activeLines.filter(({ orderId, line }) => laneIndexFor(orderId, line.id) === laneIdx);
-        const laneProgress = laneLines.reduce((sum, { line }) => {
-          const total = Number(line.cantidad || 0);
-          const current = Number(line.progress || 0);
-          if (!total) return sum;
-          return sum + Math.min(100, Math.round((current / total) * 100));
+        const laneLines = activeLines
+          .flatMap(({ orderId, line }) => buildBandAssignments(orderId, line))
+          .filter((assignment) => assignment.bandIndex === laneIdx);
+        const laneProgress = laneLines.reduce((sum, { current, target }) => {
+          if (!target) return sum;
+          return sum + Math.min(100, Math.round((current / target) * 100));
         }, 0);
         const avgProgress = laneLines.length ? Math.round(laneProgress / laneLines.length) : 0;
-          const pallets = laneLines.slice(0, 4).map(({ orderId, line }, index) => {
-          const total = Math.max(1, Number(line.cantidad || 0));
-          const current = Math.max(0, Math.min(total, Number(line.progress || 0)));
-          const percent = Math.min(100, Math.round((current / total) * 100));
+        const orderCount = new Set(laneLines.map(({ orderId }) => String(orderId))).size;
+        const pallets = laneLines.slice(0, 4).map(({ orderId, line, current, target, bandId }, index) => {
+          const total = Math.max(1, Number(target || 0));
+          const progress = Math.max(0, Math.min(total, Number(current || 0)));
+          const percent = Math.min(100, Math.round((progress / total) * 100));
           const classNames = ['lane-pallet'];
           if ((line.errors || []).length && !line.classified) {
             classNames.push('bad');
@@ -1391,9 +1438,9 @@
                   ? 'INS'
                   : 'FLU';
             const chips = [
-              `<span class="lane-pallet__chip">QR</span>`,
-              `<span class="lane-pallet__chip">P${Math.max(1, Math.min(total, current || 1))}</span>`,
-              `<span class="lane-pallet__chip">${current}/${total}</span>`
+              `<span class="lane-pallet__chip">${bandId.toUpperCase()}</span>`,
+              `<span class="lane-pallet__chip">P${Math.max(1, Math.min(total, progress || 1))}</span>`,
+              `<span class="lane-pallet__chip">${progress}/${total}</span>`
             ].join('');
             return `
               <div class="${classNames.join(' ')}" style="left:${Math.min(88, left)}%">
@@ -1413,7 +1460,7 @@
           <div class="lane-row">
             <div class="lane-title">
               <strong>Banda ${laneIdx + 1}</strong>
-              <span>${laneLines.length ? `${laneLines.length} pedidos en movimiento` : 'Sin pedido activo'}</span>
+              <span>${laneLines.length ? `${orderCount} pedido${orderCount === 1 ? '' : 's'} distribuidos` : 'Sin pedido activo'}</span>
             </div>
             <div class="lane-belt">
               <div class="lane-pallets">
@@ -1463,6 +1510,7 @@
       createdCountText.textContent = String(createdCount);
       inspectedCountText.textContent = String(inspectedCount);
       renderFactoryFloor();
+      renderHistory();
     };
 
     const renderOrders = () => {
@@ -1597,7 +1645,52 @@
       }
     };
 
-    const handleEvent = (payload) => {
+    const renderHistory = () => {
+      const activeOrderIds = new Set(Array.from(orders.keys()).map((orderId) => String(orderId)));
+      const visibleHistory = historyOrders.filter((item) => !activeOrderIds.has(String(item.orderId)));
+
+      historyEl.innerHTML = '';
+      if (historyError) {
+        historyEl.innerHTML = `<div class="empty-state">${historyError}</div>`;
+        return;
+      }
+
+      visibleHistory.forEach((item) => {
+        const entry = document.createElement('div');
+        entry.className = 'activity-item';
+        entry.innerHTML = `
+          <strong>Pedido ${item.orderId} · ${item.status}</strong>
+          <span>${item.totalProcesadas}/${item.totalSolicitadas} procesadas, ${item.totalRechazadas} rechazadas, ${item.totalLineas} lineas</span>
+          <span>${formatDateTime(item.updatedAt || item.createdAt)}</span>
+        `;
+        historyEl.appendChild(entry);
+      });
+
+      if (!visibleHistory.length) {
+        historyEl.innerHTML = '<div class="empty-state">Sin historial disponible desde la base de datos.</div>';
+      }
+    };
+
+    const loadHistory = async () => {
+      try {
+        const res = await fetch('/history');
+        if (!res.ok) {
+          throw new Error('Historial no disponible');
+        }
+        const payload = await res.json();
+        historyError = payload.ok === false
+          ? (payload.error && payload.error.message) || 'Historial no disponible por ahora.'
+          : '';
+        historyOrders = Array.isArray(payload.data) ? payload.data : [];
+      } catch (err) {
+        historyError = 'No se pudo cargar el historial desde la API.';
+        historyOrders = [];
+      }
+      renderHistory();
+    };
+
+    const handleEvent = (payload, options = {}) => {
+      const { syncHistory = true } = options;
       const event = payload.event || payload.name;
       const data = payload.data || payload;
       const eventTs = typeof payload.timestamp === 'number' ? payload.timestamp : Date.now() / 1000;
@@ -1677,6 +1770,9 @@
         }
         order.classified = Array.from(order.lines.values()).every((l) => l.classified);
         pushActivity('Clasificacion', `Orden ${orderId} linea ${line.id} clasificada.`);
+        if (order.classified) {
+          scheduleOrderCleanup(orderId, syncHistory);
+        }
       }
 
       order.inspected = Array.from(order.lines.values()).every((l) => l.inspected);
@@ -1692,7 +1788,8 @@
           throw new Error('Snapshot no disponible');
         }
         const data = await res.json();
-        (data.events || []).forEach((payload) => handleEvent(payload));
+        (data.events || []).forEach((payload) => handleEvent(payload, { syncHistory: false }));
+        await loadHistory();
         renderOrders();
         renderActivity();
       } catch (err) {
@@ -1720,6 +1817,7 @@
 
     renderOrders();
     renderActivity();
+    renderHistory();
     renderSummary();
 
     loadSnapshot().finally(startLiveStream);

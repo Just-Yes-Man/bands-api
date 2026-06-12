@@ -80,6 +80,34 @@ class OrdersService {
     return this.ordersRepository.listByClient(clienteId, page, pageSize);
   }
 
+  async listSimulatorHistory({ limit = 20 } = {}) {
+    const items = await this.ordersRepository.listRecentWithProgress(limit);
+    return items.map((order) => {
+      const totalSolicitadas = Number(order.total_solicitadas || 0);
+      const totalProcesadas = Number(order.total_procesadas || 0);
+      const totalRechazadas = Number(order.total_rechazadas || 0);
+      const totalTerminadas = totalProcesadas + totalRechazadas;
+      const totalRestantes = Math.max(0, totalSolicitadas - totalTerminadas);
+      const porcentajeAvance = totalSolicitadas
+        ? Math.min(100, Math.round((totalTerminadas / totalSolicitadas) * 100))
+        : 0;
+
+      return {
+        orderId: Number(order.id),
+        clientId: Number(order.cliente_id),
+        status: order.estado,
+        totalLineas: Number(order.total_lineas || 0),
+        totalSolicitadas,
+        totalProcesadas,
+        totalRechazadas,
+        totalRestantes,
+        porcentajeAvance,
+        createdAt: order.created_at,
+        updatedAt: order.updated_at,
+      };
+    });
+  }
+
   async getOrderDetail({ orderId, actor }) {
     const order = await this.ordersRepository.getById(orderId);
     if (!order) {

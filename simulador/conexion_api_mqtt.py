@@ -40,8 +40,12 @@ TOPIC_ERRORES_MEDICION = os.getenv(
 PROGRESS_DELAY_SEC = float(os.getenv("SIM_PROGRESS_DELAY_SEC", "0.75"))
 STAGE_DELAY_SEC = float(os.getenv("SIM_STAGE_DELAY_SEC", "20"))
 BAND_COUNT = int(os.getenv("SIM_BAND_COUNT", "5"))
-MEASUREMENT_ERROR_RATE = float(os.getenv("SIM_MEASUREMENT_ERROR_RATE", "0.25"))
 REWORK_DELAY_SEC = float(os.getenv("SIM_REWORK_DELAY_SEC", "2"))
+ERROR_PATTERN = (True, False, False)
+
+
+order_sequence_lock = threading.Lock()
+order_sequence_number = 0
 
 
 def split_counts(total: int, bands: int) -> list[int]:
@@ -113,15 +117,23 @@ def on_message(client: mqtt.Client, _userdata: Any, msg: mqtt.MQTTMessage):
             },
         )
 
+    inject_order_error = should_inject_error_for_next_order()
+
     threading.Thread(
         target=simulate_order,
-        args=(client, order_id, lineas),
+        args=(client, order_id, lineas, inject_order_error),
         daemon=True,
     ).start()
 
 
-def simulate_order(client: mqtt.Client, order_id: Any, lineas: list[Dict[str, Any]]):
+def simulate_order(
+    client: mqtt.Client,
+    order_id: Any,
+    lineas: list[Dict[str, Any]],
+    inject_order_error: bool,
+):
     time.sleep(STAGE_DELAY_SEC)
+    order_error_consumed = False
 
     for linea in lineas:
         normalized = normalize_line(linea)
@@ -132,8 +144,9 @@ def simulate_order(client: mqtt.Client, order_id: Any, lineas: list[Dict[str, An
         if not line_id or not modelo_producto_id or cantidad <= 0:
             continue
 
-        inject_error = random_error_enabled()
+        inject_error = inject_order_error and not order_error_consumed
         if inject_error:
+            order_error_consumed = True
             faulty_medicion = build_faulty_measurement_event(
                 order_id,
                 line_id,
@@ -256,9 +269,12 @@ def simulate_order(client: mqtt.Client, order_id: Any, lineas: list[Dict[str, An
         )
 
 
-def random_error_enabled() -> bool:
-    rate = max(0.0, min(1.0, MEASUREMENT_ERROR_RATE))
-    return random.random() < rate
+def should_inject_error_for_next_order() -> bool:
+    global order_sequence_number
+    with order_sequence_lock:
+        inject_error = ERROR_PATTERN[order_sequence_number % len(ERROR_PATTERN)]
+        order_sequence_number += 1
+        return inject_error
 
 
 def build_client(

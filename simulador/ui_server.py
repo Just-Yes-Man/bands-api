@@ -7,6 +7,9 @@ import os
 import queue
 import threading
 import time
+import urllib.error
+import urllib.parse
+import urllib.request
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -14,6 +17,8 @@ from typing import Any
 
 UI_DIR = Path(__file__).resolve().parent / "ui"
 INDEX_PATH = UI_DIR / "index.html"
+API_BASE_URL = os.getenv("SIM_API_BASE_URL", "http://localhost:1200/api/v1")
+HISTORY_LIMIT = int(os.getenv("SIM_HISTORY_LIMIT", "30"))
 
 
 class UiEventHub:
@@ -72,6 +77,10 @@ class UiRequestHandler(BaseHTTPRequestHandler):
             self._serve_snapshot()
             return
 
+        if self.path.startswith("/history"):
+            self._serve_history()
+            return
+
         if self.path.startswith("/events"):
             self._serve_events()
             return
@@ -124,6 +133,28 @@ class UiRequestHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(payload)
 
+    def _serve_history(self) -> None:
+        try:
+            payload = json.dumps(fetch_history(), ensure_ascii=False).encode("utf-8")
+        except Exception as exc:
+            payload = json.dumps(
+                {
+                    "ok": False,
+                    "data": [],
+                    "error": {
+                        "code": "SIM_HISTORY_UNAVAILABLE",
+                        "message": str(exc),
+                    },
+                },
+                ensure_ascii=False,
+            ).encode("utf-8")
+        self.send_response(HTTPStatus.OK)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Content-Length", str(len(payload)))
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.end_headers()
+        self.wfile.write(payload)
+
     def _send_raw(self, data: bytes) -> None:
         try:
             self.wfile.write(data)
@@ -137,3 +168,23 @@ def start_ui_server(host: str, port: int) -> ThreadingHTTPServer:
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     return server
+
+
+def fetch_history() -> dict[str, Any]:
+    query = urllib.parse.urlencode({"limit": HISTORY_LIMIT})
+    url = f"{API_BASE_URL.rstrip('/')}/simulator/orders/history?{query}"
+    request = urllib.request.Request(url, headers={"Accept": "application/json"})
+    try:
+        with urllib.request.urlopen(request, timeout=5) as response:
+            payload = response.read().decode("utf-8")
+            data = json.loads(payload)
+            if isinstance(data, dict):
+                return data
+            return {"ok": True, "data": []}
+    except urllib.error.HTTPError as exc:
+        detail = exc.read().decode("utf-8", errors="replace")
+        raise RuntimeError(
+            f"Historial no disponible en API ({exc.code}): {detail or exc.reason}"
+        ) from exc
+    except urllib.error.URLError as exc:
+        raise RuntimeError(f"No se pudo conectar con la API: {exc.reason}") from exc

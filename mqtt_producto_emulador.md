@@ -33,13 +33,19 @@ También soporta variables de entorno:
 - `MQTT_PASSWORD`
 - `SIM_PROGRESS_DELAY_SEC`
 - `SIM_STAGE_DELAY_SEC`
-- `SIM_MEASUREMENT_ERROR_RATE` (default: 0.25, usa 1 para forzar error)
 - `SIM_MEASUREMENT_ERROR_TOPIC` (default: productos/mediciones/errores)
 - `SIM_REWORK_DELAY_SEC` (default: 2)
 
 Cuando ocurre un fallo simulado, el emulador publica una medicion defectuosa,
 notifica el error por topic y despues vuelve a generar la medicion correcta para
 que el pedido pueda continuar.
+
+Patron de errores:
+
+- Pedido 1: con error
+- Pedido 2: sin error
+- Pedido 3: sin error
+- Luego el ciclo se repite
 
 ## Ejemplo de pedido entrante
 
