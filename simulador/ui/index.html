@@ -1,175 +1,540 @@
 <!doctype html>
-<html lang="en">
+<html lang="es">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Emulador - Ordenes en proceso</title>
+  <title>Simulador - Banda transportadora</title>
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700;800&display=swap');
 
     :root {
-      --ink: #0f1b2d;
-      --muted: #5c6b82;
-      --accent: #ff6f3c;
-      --accent-2: #36cfc9;
-      --panel: #ffffff;
-      --surface: #f5f7fb;
-      --shadow: 0 18px 50px rgba(15, 27, 45, 0.15);
+      --bg: #07111f;
+      --bg-2: #0d1b2d;
+      --panel: rgba(10, 18, 31, 0.86);
+      --panel-2: rgba(15, 25, 41, 0.72);
+      --line: rgba(255, 255, 255, 0.08);
+      --text: #eef5ff;
+      --muted: #96a8c3;
+      --accent: #ff8a3d;
+      --accent-2: #39d0c0;
+      --warning: #ffb15e;
+      --danger: #ff6d5a;
+      --good: #54e1a6;
+      --shadow: 0 24px 70px rgba(0, 0, 0, 0.34);
     }
 
     * {
       box-sizing: border-box;
     }
 
+    html, body {
+      min-height: 100%;
+    }
+
     body {
       margin: 0;
-      font-family: "Space Grotesk", "IBM Plex Sans", sans-serif;
-      color: var(--ink);
-      background: radial-gradient(circle at 10% 10%, #fff5ec 0%, #f5f7fb 45%, #edf7f7 100%);
-      min-height: 100vh;
+      font-family: "Space Grotesk", sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(circle at 15% 15%, rgba(57, 208, 192, 0.16), transparent 28%),
+        radial-gradient(circle at 80% 0%, rgba(255, 138, 61, 0.12), transparent 24%),
+        linear-gradient(145deg, #050b14 0%, #091423 48%, #0f1b2d 100%);
+      overflow-x: hidden;
     }
 
-    header {
-      padding: 32px 6vw 12px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 16px;
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      background-image:
+        linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px);
+      background-size: 32px 32px;
+      mask-image: radial-gradient(circle at center, black 40%, transparent 100%);
+      opacity: 0.22;
     }
 
-    header h1 {
-      margin: 0;
-      font-size: clamp(24px, 3vw, 38px);
-      letter-spacing: -0.02em;
+    .shell {
+      position: relative;
+      max-width: 1600px;
+      margin: 0 auto;
+      padding: 28px clamp(16px, 3vw, 34px) 36px;
     }
 
-    header .status {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      padding: 8px 14px;
-      border-radius: 999px;
-      background: #eef2f7;
-      color: var(--muted);
-      font-weight: 500;
-    }
-
-    header .dot {
-      width: 10px;
-      height: 10px;
-      border-radius: 999px;
-      background: #d5dde8;
-      box-shadow: 0 0 0 6px rgba(213, 221, 232, 0.4);
-    }
-
-    .summary {
-      padding: 0 6vw 12px;
-    }
-
-    .summary-card {
-      background: linear-gradient(120deg, #ffffff 0%, #f3fbfb 100%);
-      border-radius: 24px;
-      box-shadow: var(--shadow);
-      padding: 18px 22px;
+    .hero {
       display: grid;
-      gap: 12px;
-    }
-
-    .summary-card h2 {
-      margin: 0;
-      font-size: 14px;
-      text-transform: uppercase;
-      letter-spacing: 0.14em;
-      color: var(--muted);
-    }
-
-    .summary-metrics {
-      display: flex;
-      align-items: baseline;
-      justify-content: space-between;
-      gap: 16px;
-      flex-wrap: wrap;
-    }
-
-    .summary-total {
-      font-size: 28px;
-      font-weight: 700;
-    }
-
-    .summary-kpis {
-      display: flex;
-      gap: 12px;
-      flex-wrap: wrap;
+      grid-template-columns: minmax(0, 1.3fr) minmax(280px, 0.7fr);
+      gap: 18px;
       align-items: stretch;
+      margin-bottom: 18px;
     }
 
-    .summary-kpi {
-      min-width: 112px;
-      padding: 10px 12px;
-      border-radius: 12px;
-      background: #f6f8fc;
-      display: grid;
-      gap: 2px;
+    @media (max-width: 1100px) {
+      .hero { grid-template-columns: 1fr; }
     }
 
-    .summary-kpi strong {
-      font-size: 22px;
-      line-height: 1;
+    .hero-card,
+    .status-card,
+    .panel,
+    .summary-card {
+      background: linear-gradient(180deg, rgba(21, 34, 55, 0.94), rgba(10, 18, 31, 0.93));
+      border: 1px solid var(--line);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(12px);
     }
 
-    .summary-kpi span {
-      color: var(--muted);
-      font-size: 12px;
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-    }
-
-    .summary-kpi.error {
-      background: #fff1ea;
-      color: #b84822;
-    }
-
-    .summary-progress {
-      height: 10px;
-      border-radius: 999px;
-      background: #dfe6f0;
+    .hero-card {
+      border-radius: 28px;
+      padding: 24px;
+      position: relative;
       overflow: hidden;
     }
 
-    .summary-progress-bar {
+    .hero-card::before,
+    .hero-card::after {
+      content: "";
+      position: absolute;
+      border-radius: 999px;
+      filter: blur(8px);
+      opacity: 0.8;
+      pointer-events: none;
+    }
+
+    .hero-card::before {
+      width: 240px;
+      height: 240px;
+      right: -80px;
+      top: -80px;
+      background: radial-gradient(circle, rgba(57, 208, 192, 0.24), transparent 65%);
+    }
+
+    .hero-card::after {
+      width: 180px;
+      height: 180px;
+      left: -70px;
+      bottom: -70px;
+      background: radial-gradient(circle, rgba(255, 138, 61, 0.2), transparent 68%);
+    }
+
+    .hero-top {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 18px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .eyebrow {
+      margin: 0 0 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.24em;
+      font-size: 12px;
+      color: var(--accent-2);
+      font-weight: 700;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(30px, 4vw, 56px);
+      line-height: 0.96;
+      letter-spacing: -0.05em;
+    }
+
+    .hero-copy {
+      max-width: 720px;
+      color: var(--muted);
+      font-size: 16px;
+      line-height: 1.55;
+      margin: 14px 0 0;
+    }
+
+    .status {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      padding: 12px 16px;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid var(--line);
+      color: var(--muted);
+      white-space: nowrap;
+      font-weight: 600;
+    }
+
+    .dot {
+      width: 11px;
+      height: 11px;
+      border-radius: 50%;
+      background: #7f8ca4;
+      box-shadow: 0 0 0 8px rgba(127, 140, 164, 0.18);
+    }
+
+    .status-card {
+      border-radius: 28px;
+      padding: 22px;
+      display: grid;
+      gap: 18px;
+    }
+
+    .status-card h2,
+    .panel h2,
+    .summary-card h2 {
+      margin: 0;
+      font-size: 13px;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    .status-grid {
+      display: grid;
+      gap: 10px;
+    }
+
+    .status-grid .metric {
+      padding: 14px 16px;
+      border-radius: 18px;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid var(--line);
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 14px;
+    }
+
+    .metric strong {
+      font-size: 30px;
+      letter-spacing: -0.05em;
+    }
+
+    .metric span {
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      font-size: 11px;
+    }
+
+    .summary-card {
+      border-radius: 28px;
+      padding: 20px 22px 22px;
+      margin-bottom: 18px;
+      display: grid;
+      gap: 14px;
+    }
+
+    .summary-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    .summary-title {
+      display: grid;
+      gap: 6px;
+    }
+
+    .summary-total {
+      font-size: 32px;
+      font-weight: 800;
+      letter-spacing: -0.05em;
+    }
+
+    .summary-kpis {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+      min-width: min(100%, 520px);
+    }
+
+    @media (max-width: 760px) {
+      .summary-kpis { grid-template-columns: 1fr; min-width: 100%; }
+    }
+
+    .kpi {
+      padding: 14px 16px;
+      border-radius: 18px;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid var(--line);
+      display: grid;
+      gap: 6px;
+    }
+
+    .kpi strong {
+      font-size: 24px;
+      line-height: 1;
+    }
+
+    .kpi span {
+      color: var(--muted);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+    }
+
+    .kpi.error strong { color: var(--danger); }
+
+    .summary-progress,
+    .progress-track {
+      height: 12px;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.08);
+      overflow: hidden;
+      border: 1px solid rgba(255,255,255,0.06);
+    }
+
+    .summary-progress-bar,
+    .progress-bar,
+    .band-fill {
       height: 100%;
       width: 0;
       border-radius: 999px;
       background: linear-gradient(90deg, var(--accent), var(--accent-2));
-      transition: width 0.4s ease;
+      transition: width 0.35s ease;
+    }
+
+    .factory-floor {
+      border-radius: 28px;
+      padding: 22px;
+      margin-bottom: 18px;
+      overflow: hidden;
+      display: grid;
+      gap: 14px;
+    }
+
+    .floor-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .floor-header p {
+      margin: 6px 0 0;
+      color: var(--muted);
+    }
+
+    .floor-grid {
+      display: grid;
+      gap: 12px;
+    }
+
+    .lane-row {
+      display: grid;
+      grid-template-columns: 130px minmax(0, 1fr) 120px;
+      gap: 12px;
+      align-items: center;
+      padding: 12px;
+      border-radius: 20px;
+      background: rgba(255,255,255,0.03);
+      border: 1px solid var(--line);
+    }
+
+    @media (max-width: 920px) {
+      .lane-row { grid-template-columns: 1fr; }
+    }
+
+    .lane-title {
+      display: grid;
+      gap: 4px;
+    }
+
+    .lane-title strong {
+      font-size: 14px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    .lane-title span {
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .lane-belt {
+      position: relative;
+      min-height: 74px;
+      border-radius: 18px;
+      border: 1px solid rgba(255,255,255,0.08);
+      overflow: hidden;
+      background:
+        linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02)),
+        linear-gradient(90deg, rgba(255,255,255,0.03) 0 18px, transparent 18px 36px),
+        linear-gradient(180deg, rgba(15, 25, 41, 0.95), rgba(7, 12, 21, 0.98));
+    }
+
+    .lane-belt::before {
+      content: "";
+      position: absolute;
+      inset: 10px 12px;
+      border-radius: 14px;
+      border: 1px solid rgba(255,255,255,0.06);
+      background:
+        repeating-linear-gradient(90deg, rgba(255,255,255,0.04) 0 16px, rgba(255,255,255,0.01) 16px 32px),
+        linear-gradient(180deg, rgba(33, 47, 71, 0.96), rgba(14, 22, 35, 0.98));
+      animation: conveyorMove 8s linear infinite;
+      background-size: 320px 100%;
+    }
+
+    .lane-pallets {
+      position: absolute;
+      inset: 12px;
+      overflow: hidden;
+      pointer-events: none;
+    }
+
+    .lane-pallet {
+      position: absolute;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      min-width: 112px;
+      height: 50px;
+      padding: 7px 10px 6px;
+      border-radius: 15px;
+      background: linear-gradient(180deg, #fbfbff, #cfd8e8);
+      border: 1px solid rgba(255,255,255,0.28);
+      box-shadow: 0 12px 24px rgba(0, 0, 0, 0.3);
+      display: grid;
+      gap: 3px;
+      color: #19263b;
+      white-space: nowrap;
+      overflow: hidden;
+    }
+
+    .lane-pallet.good { background: linear-gradient(180deg, #fdfff9, #d9f7e9); }
+    .lane-pallet.warn { background: linear-gradient(180deg, #fff9f1, #ffe1bf); }
+    .lane-pallet.bad { background: linear-gradient(180deg, #fff6f4, #ffd5cd); }
+
+    .lane-pallet::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      background: linear-gradient(135deg, rgba(255,255,255,0.38), transparent 42%);
+      pointer-events: none;
+    }
+
+    .lane-pallet__head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    .lane-pallet__body {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .lane-pallet__badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 20px;
+      height: 20px;
+      padding: 0 6px;
+      border-radius: 999px;
+      background: rgba(25, 38, 59, 0.12);
+      font-size: 9px;
+      letter-spacing: 0.1em;
+    }
+
+    .lane-pallet__chips {
+      display: flex;
+      gap: 4px;
+      flex-wrap: wrap;
+    }
+
+    .lane-pallet__chip {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 20px;
+      height: 16px;
+      padding: 0 5px;
+      border-radius: 999px;
+      background: rgba(25, 38, 59, 0.1);
+      font-size: 8px;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+    }
+
+    .lane-meta {
+      display: grid;
+      gap: 6px;
+      justify-items: end;
+      text-align: right;
+    }
+
+    .lane-meta strong {
+      font-size: 13px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .lane-meta span {
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .lane-progress {
+      height: 8px;
+      width: 100%;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.08);
+      overflow: hidden;
+    }
+
+    .lane-progress-fill {
+      height: 100%;
+      width: 0;
+      border-radius: 999px;
+      background: linear-gradient(90deg, var(--accent), var(--accent-2));
+      transition: width 0.35s ease;
     }
 
     main {
       display: grid;
-      grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.8fr);
-      gap: 24px;
-      padding: 12px 6vw 48px;
+      grid-template-columns: minmax(0, 1.25fr) minmax(360px, 0.75fr);
+      gap: 18px;
     }
 
-    @media (max-width: 960px) {
-      main {
-        grid-template-columns: 1fr;
-      }
+    @media (max-width: 1180px) {
+      main { grid-template-columns: 1fr; }
     }
 
     .panel {
-      background: var(--panel);
-      border-radius: 24px;
-      box-shadow: var(--shadow);
-      padding: 24px;
+      border-radius: 28px;
+      padding: 22px;
+      overflow: hidden;
     }
 
-    .panel h2 {
-      margin: 0 0 16px;
-      font-size: 18px;
-      text-transform: uppercase;
-      letter-spacing: 0.12em;
+    .panel-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+    }
+
+    .panel-header p {
+      margin: 6px 0 0;
       color: var(--muted);
+      line-height: 1.45;
     }
 
     .orders {
@@ -178,127 +543,389 @@
     }
 
     .order-card {
-      border-radius: 18px;
+      border-radius: 24px;
+      border: 1px solid var(--line);
+      background: linear-gradient(180deg, rgba(17, 28, 45, 0.96), rgba(10, 18, 31, 0.96));
       padding: 18px;
-      border: 1px solid #edf0f6;
-      background: linear-gradient(135deg, #ffffff 0%, #fbfbff 100%);
       position: relative;
       overflow: hidden;
-      animation: rise 0.4s ease;
+      animation: rise 0.45s ease;
     }
 
-    .order-card::after {
+    .order-card::before {
       content: "";
       position: absolute;
-      inset: auto -20% -80% auto;
-      width: 160px;
-      height: 160px;
-      background: radial-gradient(circle, rgba(54, 207, 201, 0.24), transparent 60%);
+      inset: auto -20% -48% auto;
+      width: 240px;
+      height: 240px;
+      background: radial-gradient(circle, rgba(57, 208, 192, 0.12), transparent 64%);
+      pointer-events: none;
     }
 
     .order-head {
       display: flex;
-      align-items: baseline;
+      align-items: flex-start;
       justify-content: space-between;
       gap: 12px;
-      margin-bottom: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 14px;
+      position: relative;
+      z-index: 1;
     }
 
     .order-id {
+      display: grid;
+      gap: 6px;
       font-weight: 700;
     }
 
-    .badge {
-      font-size: 12px;
-      padding: 4px 10px;
-      border-radius: 999px;
-      background: #fff1ea;
-      color: var(--accent);
-      font-weight: 600;
+    .order-id small {
+      color: var(--muted);
+      font-weight: 500;
       text-transform: uppercase;
+      letter-spacing: 0.14em;
+      font-size: 11px;
+    }
+
+    .badge {
+      align-self: flex-start;
+      border-radius: 999px;
+      padding: 7px 12px;
+      background: rgba(255, 177, 94, 0.12);
+      border: 1px solid rgba(255, 177, 94, 0.22);
+      color: #ffcf98;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      font-size: 11px;
+      font-weight: 700;
+    }
+
+    .order-stage-strip {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+
+    @media (max-width: 640px) {
+      .order-stage-strip { grid-template-columns: 1fr; }
+    }
+
+    .stage-box {
+      padding: 12px 14px;
+      border-radius: 18px;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid var(--line);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      color: var(--muted);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+    }
+
+    .stage-box strong {
+      color: var(--text);
+      font-size: 13px;
       letter-spacing: 0.08em;
+    }
+
+    .stage-box.active {
+      border-color: rgba(57, 208, 192, 0.3);
+      background: rgba(57, 208, 192, 0.08);
+    }
+
+    .stage-box.error {
+      border-color: rgba(255, 109, 90, 0.3);
+      background: rgba(255, 109, 90, 0.08);
     }
 
     .line-list {
       display: grid;
-      gap: 10px;
+      gap: 12px;
+      position: relative;
+      z-index: 1;
     }
 
     .line-item {
-      border-radius: 12px;
-      padding: 10px 12px;
-      background: #f6f8fc;
+      border-radius: 22px;
+      border: 1px solid var(--line);
+      background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02));
+      padding: 14px;
       display: grid;
-      gap: 8px;
+      gap: 14px;
     }
 
     .line-item.has-error {
-      border: 1px solid rgba(255, 111, 60, 0.38);
-      background: #fff8f4;
+      border-color: rgba(255, 109, 90, 0.26);
+      box-shadow: inset 0 0 0 1px rgba(255, 109, 90, 0.08);
     }
 
     .line-meta {
       display: flex;
       justify-content: space-between;
-      font-size: 13px;
+      gap: 12px;
+      flex-wrap: wrap;
       color: var(--muted);
+      font-size: 13px;
+    }
+
+    .line-title {
+      color: var(--text);
+      font-weight: 700;
+      font-size: 15px;
     }
 
     .line-timing {
-      display: flex;
-      justify-content: space-between;
-      gap: 12px;
-      flex-wrap: wrap;
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
       font-size: 12px;
       color: var(--muted);
     }
 
-    .progress-track {
-      height: 8px;
-      border-radius: 999px;
-      background: #dfe6f0;
+    @media (max-width: 640px) {
+      .line-timing { grid-template-columns: 1fr; }
+    }
+
+    .timing-chip {
+      padding: 10px 12px;
+      border-radius: 14px;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid var(--line);
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .timing-chip strong { color: var(--text); }
+
+    .conveyor-scene {
+      position: relative;
+      border-radius: 22px;
+      overflow: hidden;
+      border: 1px solid rgba(255,255,255,0.08);
+      background:
+        linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02)),
+        radial-gradient(circle at 50% 0%, rgba(57, 208, 192, 0.12), transparent 45%),
+        rgba(4, 10, 19, 0.72);
+      padding: 16px;
+    }
+
+    .conveyor-scene::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background:
+        linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.05) 50%, transparent 100%);
+      background-size: 220px 100%;
+      animation: scan 7s linear infinite;
+      opacity: 0.25;
+      pointer-events: none;
+    }
+
+    .scene-row {
+      display: grid;
+      grid-template-columns: 110px minmax(0, 1fr) 110px;
+      gap: 12px;
+      align-items: center;
+      position: relative;
+      z-index: 1;
+    }
+
+    @media (max-width: 860px) {
+      .scene-row { grid-template-columns: 1fr; }
+    }
+
+    .station {
+      position: relative;
+      min-height: 120px;
+      border-radius: 20px;
+      background: rgba(255,255,255,0.03);
+      border: 1px solid var(--line);
+      padding: 14px;
+      display: grid;
+      align-content: space-between;
+      gap: 12px;
       overflow: hidden;
     }
 
-    .progress-bar {
-      height: 100%;
-      width: 0;
-      border-radius: 999px;
-      background: linear-gradient(90deg, var(--accent), var(--accent-2));
-      transition: width 0.35s ease;
-    }
-
-    .stages {
-      display: flex;
-      gap: 10px;
-      flex-wrap: wrap;
-    }
-
-    .stage-pill {
-      padding: 4px 10px;
-      border-radius: 999px;
+    .station-label {
+      display: grid;
+      gap: 4px;
       font-size: 12px;
-      background: #e9eef6;
       color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
     }
 
-    .stage-pill.active {
-      background: #e7fbfa;
-      color: #13807a;
+    .station-label strong {
+      font-size: 14px;
+      color: var(--text);
+      text-transform: none;
+      letter-spacing: 0;
     }
 
-    .stage-pill.error {
-      background: #fff1ea;
-      color: #b84822;
+    .station-visual {
+      height: 64px;
+      border-radius: 16px;
+      background:
+        linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.03)),
+        repeating-linear-gradient(90deg, rgba(255,255,255,0.06) 0 8px, rgba(255,255,255,0.02) 8px 16px);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .station-visual::after {
+      content: "";
+      position: absolute;
+      inset: auto 8px 8px 8px;
+      height: 12px;
+      border-radius: 999px;
+      background: linear-gradient(90deg, rgba(255, 138, 61, 0.25), rgba(57, 208, 192, 0.5));
+      filter: blur(1px);
+    }
+
+    .belt {
+      position: relative;
+      min-height: 180px;
+      border-radius: 24px;
+      border: 1px solid rgba(255,255,255,0.08);
+      background:
+        linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02)),
+        linear-gradient(90deg, rgba(255,255,255,0.03) 0 16px, transparent 16px 32px),
+        linear-gradient(180deg, #172437 0%, #0b1320 100%);
+      overflow: hidden;
+    }
+
+    .belt::before {
+      content: "";
+      position: absolute;
+      inset: 22px 18px;
+      border-radius: 18px;
+      border: 1px solid rgba(255,255,255,0.08);
+      background:
+        repeating-linear-gradient(90deg, rgba(255,255,255,0.05) 0 18px, rgba(255,255,255,0.01) 18px 36px),
+        linear-gradient(180deg, rgba(33, 47, 71, 0.96), rgba(14, 22, 35, 0.98));
+      animation: conveyorMove 9s linear infinite;
+      background-size: 360px 100%;
+    }
+
+    .belt-track {
+      position: absolute;
+      inset: 22px 18px;
+      border-radius: 18px;
+      pointer-events: none;
+      overflow: hidden;
+    }
+
+    .belt-track::before,
+    .belt-track::after {
+      content: "";
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      width: 24px;
+      background: linear-gradient(180deg, rgba(255,255,255,0.18), transparent 70%);
+      opacity: 0.55;
+    }
+
+    .belt-track::before { left: 12px; }
+    .belt-track::after { right: 12px; }
+
+    .lane-lines {
+      position: absolute;
+      inset: 0;
+      background-image: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.1) 50%, transparent 100%);
+      background-size: 120px 100%;
+      opacity: 0.16;
+      animation: beltGlow 5s linear infinite;
+    }
+
+    .product-train {
+      position: absolute;
+      inset: 28px 26px;
+      display: flex;
+      align-items: center;
+      pointer-events: none;
+      overflow: hidden;
+    }
+
+    .pallet {
+      position: absolute;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      width: 72px;
+      height: 42px;
+      border-radius: 16px;
+      background: linear-gradient(180deg, #fbfbff, #cfd8e8);
+      border: 1px solid rgba(255,255,255,0.28);
+      box-shadow: 0 12px 24px rgba(0, 0, 0, 0.3);
+      display: grid;
+      place-items: center;
+      color: #19263b;
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
+
+    .pallet::before {
+      content: "";
+      position: absolute;
+      left: 8px;
+      right: 8px;
+      bottom: -6px;
+      height: 10px;
+      border-radius: 999px;
+      background: linear-gradient(90deg, rgba(0,0,0,0.16), rgba(0,0,0,0.04));
+      filter: blur(2px);
+    }
+
+    .pallet.good { background: linear-gradient(180deg, #fdfff9, #d9f7e9); }
+    .pallet.warn { background: linear-gradient(180deg, #fff9f1, #ffe1bf); }
+    .pallet.bad { background: linear-gradient(180deg, #fff6f4, #ffd5cd); }
+
+    .band-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 10px;
+    }
+
+    .band-item {
+      border-radius: 18px;
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,0.04);
+      padding: 12px;
+      display: grid;
+      gap: 8px;
+    }
+
+    .band-item header {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      color: var(--muted);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+    }
+
+    .band-item header strong {
+      color: var(--text);
+      letter-spacing: 0.08em;
     }
 
     .comparison {
-      border-radius: 12px;
-      border: 1px solid #ffd8c7;
-      background: #fffaf7;
+      border-radius: 20px;
+      border: 1px solid rgba(255, 109, 90, 0.22);
+      background: rgba(255, 109, 90, 0.08);
       display: grid;
-      gap: 8px;
-      padding: 10px;
+      gap: 10px;
+      padding: 12px;
     }
 
     .comparison-head {
@@ -306,153 +933,196 @@
       align-items: center;
       justify-content: space-between;
       gap: 8px;
-      color: #b84822;
+      color: #ffd0c7;
       font-size: 12px;
       font-weight: 700;
       text-transform: uppercase;
       letter-spacing: 0.08em;
+      flex-wrap: wrap;
     }
 
     .comparison-grid {
       display: grid;
-      grid-template-columns: minmax(88px, 0.9fr) minmax(80px, 1fr) minmax(80px, 1fr);
-      gap: 6px;
-      align-items: stretch;
+      grid-template-columns: minmax(100px, 1fr) minmax(84px, 0.8fr) minmax(84px, 0.8fr);
+      gap: 8px;
       font-size: 12px;
     }
 
     .comparison-cell {
-      padding: 7px 8px;
-      border-radius: 8px;
-      background: #ffffff;
+      padding: 8px 9px;
+      border-radius: 10px;
+      background: rgba(255,255,255,0.06);
       color: var(--muted);
-      min-width: 0;
       overflow-wrap: anywhere;
     }
 
     .comparison-cell.header {
       background: transparent;
-      color: var(--ink);
+      color: var(--text);
       font-weight: 700;
     }
 
     .comparison-cell.mismatch {
-      background: #fff1ea;
-      color: #b84822;
+      background: rgba(255, 109, 90, 0.18);
+      color: #ffd0c7;
       font-weight: 700;
     }
 
     .activity {
-      max-height: 520px;
+      max-height: 760px;
       overflow: auto;
       display: grid;
       gap: 10px;
+      padding-right: 4px;
     }
 
     .activity-item {
-      padding: 10px 12px;
-      border-radius: 12px;
-      background: #f6f8fc;
+      padding: 12px 14px;
+      border-radius: 18px;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid var(--line);
       font-size: 13px;
-      color: var(--muted);
-      display: grid;
-      gap: 4px;
-    }
-
-    .activity-item strong {
-      color: var(--ink);
-    }
-
-    .band-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
-      gap: 8px;
-    }
-
-    .band-item {
-      padding: 8px 10px;
-      border-radius: 10px;
-      background: #eef3fb;
-      font-size: 12px;
       color: var(--muted);
       display: grid;
       gap: 6px;
     }
 
-    .band-bar {
-      height: 6px;
-      border-radius: 999px;
-      background: #d4dce8;
-      overflow: hidden;
+    .activity-item strong { color: var(--text); }
+
+    .activity-item span:last-child {
+      color: #7e90ac;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      font-size: 11px;
     }
 
-    .band-fill {
-      height: 100%;
-      width: 0;
-      border-radius: 999px;
-      background: linear-gradient(90deg, #ff9a62, #36cfc9);
-      transition: width 0.35s ease;
+    .empty-state {
+      padding: 18px;
+      border-radius: 20px;
+      background: rgba(255,255,255,0.04);
+      border: 1px dashed rgba(255,255,255,0.12);
+      color: var(--muted);
     }
 
     @keyframes rise {
-      from {
-        opacity: 0;
-        transform: translateY(12px);
-      }
-      to {
-        opacity: 1;
-        transform: translateY(0);
-      }
+      from { opacity: 0; transform: translateY(14px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes scan {
+      from { transform: translateX(-20%); }
+      to { transform: translateX(120%); }
+    }
+
+    @keyframes conveyorMove {
+      from { background-position: 0 0; }
+      to { background-position: 360px 0; }
+    }
+
+    @keyframes beltGlow {
+      from { background-position: 0 0; }
+      to { background-position: 120px 0; }
     }
   </style>
 </head>
 <body>
-  <header>
-    <div>
-      <h1>Emulador visual de pedidos</h1>
-      <p>Seguimiento en vivo de creacion, inspeccion y clasificacion.</p>
-    </div>
-    <div class="status" id="status">
-      <span class="dot" id="statusDot"></span>
-      <span id="statusText">Esperando eventos</span>
-    </div>
-  </header>
+  <div class="shell">
+    <section class="hero">
+      <article class="hero-card">
+        <div class="hero-top">
+          <div>
+            <p class="eyebrow">Planta de emulacion</p>
+            <h1>Bandas transportadoras en vivo</h1>
+            <p class="hero-copy">Vista tipo sala de control para seguir el paso de cada orden por la linea de transporte, la estacion de inspeccion y la clasificacion final.</p>
+          </div>
+          <div class="status" id="status">
+            <span class="dot" id="statusDot"></span>
+            <span id="statusText">Esperando eventos</span>
+          </div>
+        </div>
+      </article>
 
-  <section class="summary">
-    <div class="summary-card">
-      <div class="summary-metrics">
-        <div>
-          <h2>Progreso total</h2>
+      <aside class="status-card">
+        <h2>Estado de planta</h2>
+        <div class="status-grid">
+          <div class="metric">
+            <strong id="activeOrdersText">0</strong>
+            <span>Pedidos activos</span>
+          </div>
+          <div class="metric">
+            <strong id="errorCountText">0</strong>
+            <span>Alertas de inspeccion</span>
+          </div>
+          <div class="metric">
+            <strong id="activeBeltText">0</strong>
+            <span>Lineas en movimiento</span>
+          </div>
+        </div>
+      </aside>
+    </section>
+
+    <section class="summary-card">
+      <div class="summary-top">
+        <div class="summary-title">
+          <h2>Progreso global</h2>
           <div class="summary-total" id="totalProgressText">0/0</div>
         </div>
         <div class="summary-kpis">
-          <div class="summary-kpi">
-            <strong id="activeOrdersText">0</strong>
-            <span>Pedidos</span>
+          <div class="kpi">
+            <strong id="createdCountText">0</strong>
+            <span>Pedidos creados</span>
           </div>
-          <div class="summary-kpi error">
-            <strong id="errorCountText">0</strong>
-            <span>Errores</span>
+          <div class="kpi">
+            <strong id="inspectedCountText">0</strong>
+            <span>Pedidos inspeccionados</span>
+          </div>
+          <div class="kpi error">
+            <strong id="errorCountText2">0</strong>
+            <span>Reprocesos</span>
           </div>
         </div>
       </div>
       <div class="summary-progress">
         <div class="summary-progress-bar" id="totalProgressBar"></div>
       </div>
-    </div>
-  </section>
-
-  <main>
-    <section class="panel">
-      <h2>Pedidos activos</h2>
-      <div class="orders" id="orders"></div>
     </section>
 
-    <section class="panel">
-      <h2>Actividad</h2>
-      <div class="activity" id="activity"></div>
+    <section class="factory-floor panel">
+      <div class="floor-header">
+        <div>
+          <h2>Planta de 5 bandas</h2>
+          <p>Vista general de las cinco bandas con el movimiento de pedidos en tiempo real.</p>
+        </div>
+        <div class="status" id="floorStatus">
+          <span class="dot"></span>
+          <span>Linea activa</span>
+        </div>
+      </div>
+      <div class="floor-grid" id="floorGrid"></div>
     </section>
-  </main>
+
+    <main>
+      <section class="panel">
+        <div class="panel-header">
+          <div>
+            <h2>Linea de banda transportadora</h2>
+            <p>Cada pedido se representa como una celda con cinta, estaciones y paquetes moviendose por la planta.</p>
+          </div>
+        </div>
+        <div class="orders" id="orders"></div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-header">
+          <div>
+            <h2>Registro de planta</h2>
+            <p>Eventos recientes de creacion, inspeccion, avance y clasificacion.</p>
+          </div>
+        </div>
+        <div class="activity" id="activity"></div>
+      </section>
+    </main>
+  </div>
 
   <script>
     const orders = new Map();
@@ -461,19 +1131,24 @@
 
     const ordersEl = document.getElementById('orders');
     const activityEl = document.getElementById('activity');
+    const floorGridEl = document.getElementById('floorGrid');
     const statusText = document.getElementById('statusText');
     const statusDot = document.getElementById('statusDot');
     const totalProgressText = document.getElementById('totalProgressText');
     const totalProgressBar = document.getElementById('totalProgressBar');
     const activeOrdersText = document.getElementById('activeOrdersText');
     const errorCountText = document.getElementById('errorCountText');
+    const errorCountText2 = document.getElementById('errorCountText2');
+    const activeBeltText = document.getElementById('activeBeltText');
+    const createdCountText = document.getElementById('createdCountText');
+    const inspectedCountText = document.getElementById('inspectedCountText');
 
     const setStatus = (text, ok) => {
       statusText.textContent = text;
-      statusDot.style.background = ok ? '#36cfc9' : '#d5dde8';
+      statusDot.style.background = ok ? '#39d0c0' : '#7f8ca4';
       statusDot.style.boxShadow = ok
-        ? '0 0 0 6px rgba(54, 207, 201, 0.25)'
-        : '0 0 0 6px rgba(213, 221, 232, 0.4)';
+        ? '0 0 0 8px rgba(57, 208, 192, 0.18)'
+        : '0 0 0 8px rgba(127, 140, 164, 0.18)';
     };
 
     const pushActivity = (title, detail) => {
@@ -560,6 +1235,15 @@
       return labels[reason] || reason || 'Error de medicion';
     };
 
+    const laneIndexFor = (orderId, lineId) => {
+      const seed = `${orderId || ''}:${lineId || ''}`;
+      let hash = 0;
+      for (let i = 0; i < seed.length; i += 1) {
+        hash = (hash * 31 + seed.charCodeAt(i)) >>> 0;
+      }
+      return hash % BAND_COUNT;
+    };
+
     const buildComparisonHtml = (line) => {
       const error = line.lastError;
       if (!error) return '';
@@ -601,15 +1285,172 @@
       `;
     };
 
+    const buildPallets = (line) => {
+      const total = Math.max(1, Number(line.cantidad || 0));
+      const current = Math.max(0, Math.min(total, Number(line.progress || 0)));
+      const activeCount = Math.max(1, Math.min(4, Math.round((current / total) * 4) || (line.classified ? 4 : 1)));
+      const start = 12;
+      const end = 88;
+      const range = end - start;
+      const positions = Array.from({ length: activeCount }, (_, index) => {
+        const fraction = activeCount === 1 ? 0.65 : index / (activeCount - 1);
+        const jitter = ((index % 2 === 0 ? -1 : 1) * 1.8);
+        return Math.max(start, Math.min(end, start + (fraction * range) + jitter));
+      });
+      return positions.map((position, index) => {
+        const classNames = ['pallet'];
+        if ((line.errors || []).length && index === activeCount - 1) {
+          classNames.push('bad');
+        } else if (line.classified) {
+          classNames.push('good');
+        } else if (line.inspected) {
+          classNames.push('warn');
+        }
+        const statusLabel = line.classified
+          ? 'OK'
+          : (line.errors || []).length
+            ? 'ERR'
+            : line.inspected
+              ? 'INS'
+              : 'FLU';
+        const chips = [
+          `<span class="lane-pallet__chip">QR</span>`,
+          `<span class="lane-pallet__chip">P${Math.max(1, Math.min(total, current || 1))}</span>`,
+          `<span class="lane-pallet__chip">${current}/${total}</span>`
+        ].join('');
+        return `
+          <div class="${classNames.join(' ')}" style="left:${position}%">
+            <div class="lane-pallet__head">
+              <span>Modelo ${line.modeloProductoId}</span>
+              <span class="lane-pallet__badge">${statusLabel}</span>
+            </div>
+            <div class="lane-pallet__body">
+              <span>Pedido ${line.id}</span>
+              <div class="lane-pallet__chips">${chips}</div>
+            </div>
+          </div>
+        `;
+      }).join('');
+    };
+
+    const buildStationLabel = (title, value, active, kind) => {
+      const stateClass = active ? 'active' : '';
+      return `
+        <div class="station ${stateClass}">
+          <div class="station-label">
+            <strong>${title}</strong>
+            <span>${value}</span>
+          </div>
+          <div class="station-visual" data-kind="${kind}"></div>
+        </div>
+      `;
+    };
+
+    const collectActiveLines = () => {
+      const lines = [];
+      orders.forEach((order) => {
+        order.lines.forEach((line) => {
+          if (!line.startedAt && !line.progress && !(line.errors || []).length) {
+            return;
+          }
+          lines.push({ orderId: order.orderId, line });
+        });
+      });
+      return lines.sort((a, b) => Number(b.line.progress || 0) - Number(a.line.progress || 0));
+    };
+
+    const renderFactoryFloor = () => {
+      const activeLines = collectActiveLines();
+      const lanes = Array.from({ length: BAND_COUNT }, (_, laneIdx) => {
+        const laneLines = activeLines.filter(({ orderId, line }) => laneIndexFor(orderId, line.id) === laneIdx);
+        const laneProgress = laneLines.reduce((sum, { line }) => {
+          const total = Number(line.cantidad || 0);
+          const current = Number(line.progress || 0);
+          if (!total) return sum;
+          return sum + Math.min(100, Math.round((current / total) * 100));
+        }, 0);
+        const avgProgress = laneLines.length ? Math.round(laneProgress / laneLines.length) : 0;
+          const pallets = laneLines.slice(0, 4).map(({ orderId, line }, index) => {
+          const total = Math.max(1, Number(line.cantidad || 0));
+          const current = Math.max(0, Math.min(total, Number(line.progress || 0)));
+          const percent = Math.min(100, Math.round((current / total) * 100));
+          const classNames = ['lane-pallet'];
+          if ((line.errors || []).length && !line.classified) {
+            classNames.push('bad');
+          } else if (line.classified) {
+            classNames.push('good');
+          } else if (line.inspected) {
+            classNames.push('warn');
+          }
+          const left = 16 + (index * 20) + (percent * 0.42);
+            const statusLabel = line.classified
+              ? 'OK'
+              : (line.errors || []).length
+                ? 'ERR'
+                : line.inspected
+                  ? 'INS'
+                  : 'FLU';
+            const chips = [
+              `<span class="lane-pallet__chip">QR</span>`,
+              `<span class="lane-pallet__chip">P${Math.max(1, Math.min(total, current || 1))}</span>`,
+              `<span class="lane-pallet__chip">${current}/${total}</span>`
+            ].join('');
+            return `
+              <div class="${classNames.join(' ')}" style="left:${Math.min(88, left)}%">
+                <div class="lane-pallet__head">
+                  <span>Modelo ${line.modeloProductoId}</span>
+                  <span class="lane-pallet__badge">${statusLabel}</span>
+                </div>
+                <div class="lane-pallet__body">
+                  <span>Pedido ${orderId}</span>
+                  <div class="lane-pallet__chips">${chips}</div>
+                </div>
+              </div>
+            `;
+        }).join('');
+
+        return `
+          <div class="lane-row">
+            <div class="lane-title">
+              <strong>Banda ${laneIdx + 1}</strong>
+              <span>${laneLines.length ? `${laneLines.length} pedidos en movimiento` : 'Sin pedido activo'}</span>
+            </div>
+            <div class="lane-belt">
+              <div class="lane-pallets">
+                ${pallets}
+              </div>
+            </div>
+            <div class="lane-meta">
+              <strong>${laneLines.length ? `${avgProgress}%` : '0%'}</strong>
+              <span>avance medio</span>
+              <div class="lane-progress">
+                <div class="lane-progress-fill" style="width:${laneLines.length ? avgProgress : 0}%"></div>
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      floorGridEl.innerHTML = lanes;
+    };
+
     const renderSummary = () => {
       let totalTarget = 0;
       let totalProgress = 0;
       let totalErrors = 0;
+      let createdCount = 0;
+      let inspectedCount = 0;
+      let activeBelts = 0;
       orders.forEach((order) => {
+        if (order.created) createdCount += 1;
+        if (order.inspected) inspectedCount += 1;
         order.lines.forEach((line) => {
           totalTarget += Number(line.cantidad || 0);
           totalProgress += Number(line.progress || 0);
           totalErrors += (line.errors || []).length;
+          if (!line.classified && (line.progress || line.inspected || (line.errors || []).length)) {
+            activeBelts += 1;
+          }
         });
       });
       const percent = totalTarget ? Math.min(100, Math.round((totalProgress / totalTarget) * 100)) : 0;
@@ -617,6 +1458,11 @@
       totalProgressBar.style.width = `${percent}%`;
       activeOrdersText.textContent = String(orders.size);
       errorCountText.textContent = String(totalErrors);
+      errorCountText2.textContent = String(totalErrors);
+      activeBeltText.textContent = String(activeBelts);
+      createdCountText.textContent = String(createdCount);
+      inspectedCountText.textContent = String(inspectedCount);
+      renderFactoryFloor();
     };
 
     const renderOrders = () => {
@@ -629,16 +1475,19 @@
         const head = document.createElement('div');
         head.className = 'order-head';
         head.innerHTML = `
-          <div class="order-id">Pedido: ${order.orderId || 'sin-id'}</div>
-          <span class="badge">${order.created ? 'en proceso' : 'nuevo'}</span>
+          <div class="order-id">
+            <small>Pedido</small>
+            <span>${order.orderId || 'sin-id'}</span>
+          </div>
+          <span class="badge">${order.classified ? 'finalizado' : order.inspected ? 'en control' : order.created ? 'en proceso' : 'nuevo'}</span>
         `;
 
         const stages = document.createElement('div');
-        stages.className = 'stages';
+        stages.className = 'order-stage-strip';
         stages.innerHTML = `
-          <span class="stage-pill ${order.created ? 'active' : ''}">Creado</span>
-          <span class="stage-pill ${order.inspected ? 'active' : ''}">Inspeccion</span>
-          <span class="stage-pill ${order.classified ? 'active' : ''}">Clasificacion</span>
+          <div class="stage-box ${order.created ? 'active' : ''}"><strong>Creado</strong><span>${order.lines.size} lineas</span></div>
+          <div class="stage-box ${order.inspected ? 'active' : ''}"><strong>Inspeccion</strong><span>${order.inspected ? 'OK' : 'pendiente'}</span></div>
+          <div class="stage-box ${order.classified ? 'active' : ''}"><strong>Clasificacion</strong><span>${order.classified ? 'completa' : 'en linea'}</span></div>
         `;
 
         const lineList = document.createElement('div');
@@ -665,30 +1514,49 @@
             const bandPercent = target ? Math.min(100, Math.round((current / target) * 100)) : 0;
             return `
               <div class="band-item">
-                <div>${bandId.toUpperCase()}</div>
-                <div>${current}/${target}</div>
-                <div class="band-bar">
-                  <div class="band-fill" style="width: ${bandPercent}%"></div>
+                <header>
+                  <strong>${bandId.toUpperCase()}</strong>
+                  <span>${current}/${target}</span>
+                </header>
+                <div class="mini-track">
+                  <div class="mini-fill" style="width:${bandPercent}%"></div>
                 </div>
               </div>
             `;
           }).join('');
+
+          const pallets = buildPallets(line);
           lineItem.innerHTML = `
             <div class="line-meta">
-              <span>Linea ${line.id} - Modelo ${line.modeloProductoId}</span>
-              <span>${line.progress}/${line.cantidad}</span>
+              <div>
+                <div class="line-title">Linea ${line.id} - Modelo ${line.modeloProductoId}</div>
+                <div>Registro ${line.progress}/${line.cantidad}</div>
+              </div>
+              <div>${(line.errors || []).length ? 'requiere reproceso' : 'flujo normal'}</div>
             </div>
             <div class="line-timing">
-              <span>Tiempo esperado: ${expected}</span>
-              <span>Tiempo real: ${real}</span>
+              <div class="timing-chip"><span>Tiempo esperado</span><strong>${expected}</strong></div>
+              <div class="timing-chip"><span>Tiempo real</span><strong>${real}</strong></div>
+            </div>
+            <div class="conveyor-scene">
+              <div class="scene-row">
+                ${buildStationLabel('Carga', 'Entrada de producto', true, 'load')}
+                <div class="belt">
+                  <div class="belt-track">
+                    <div class="lane-lines"></div>
+                    <div class="product-train">${pallets}</div>
+                  </div>
+                </div>
+                ${buildStationLabel('Salida', 'Clasificacion final', line.classified, 'exit')}
+              </div>
             </div>
             <div class="progress-track">
-              <div class="progress-bar" style="width: ${percent}%"></div>
+              <div class="progress-bar" style="width:${percent}%"></div>
             </div>
-            <div class="stages">
-              <span class="stage-pill ${line.inspected ? 'active' : ''}">Inspeccion</span>
-              <span class="stage-pill ${(line.errors || []).length ? 'error' : ''}">Errores ${(line.errors || []).length}</span>
-              <span class="stage-pill ${line.classified ? 'active' : ''}">Clasificacion</span>
+            <div class="order-stage-strip">
+              <div class="stage-box ${line.inspected ? 'active' : ''}"><strong>Inspeccion</strong><span>${line.inspected ? 'validada' : 'pendiente'}</span></div>
+              <div class="stage-box ${(line.errors || []).length ? 'error' : ''}"><strong>Errores</strong><span>${(line.errors || []).length}</span></div>
+              <div class="stage-box ${line.classified ? 'active' : ''}"><strong>Clasificacion</strong><span>${line.classified ? 'completa' : 'en proceso'}</span></div>
             </div>
             ${comparisonHtml}
             <div class="band-grid">
@@ -705,7 +1573,7 @@
       });
 
       if (!sorted.length) {
-        ordersEl.innerHTML = '<div class="activity-item">Sin pedidos en curso.</div>';
+        ordersEl.innerHTML = '<div class="empty-state">Sin pedidos en curso. Cuando llegue un evento, la linea arrancara con la cinta y las estaciones visibles.</div>';
       }
 
       renderSummary();
@@ -725,7 +1593,7 @@
       });
 
       if (!activity.length) {
-        activityEl.innerHTML = '<div class="activity-item">Esperando actividad.</div>';
+        activityEl.innerHTML = '<div class="empty-state">Esperando actividad en la planta.</div>';
       }
     };
 
@@ -765,7 +1633,7 @@
         line.errors.push(line.lastError);
         pushActivity(
           'Error de medicion',
-          `Orden ${orderId} linea ${line.id}: ${reasonLabel(data.reason)}. Se vuelve a generar el producto.`
+          `Orden ${orderId} linea ${line.id}: ${reasonLabel(data.reason)}. Se repite el paso por la estacion.`
         );
       }
 
