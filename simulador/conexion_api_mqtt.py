@@ -37,6 +37,10 @@ TOPIC_ERRORES_MEDICION = os.getenv(
     "SIM_MEASUREMENT_ERROR_TOPIC",
     "productos/mediciones/errores",
 )
+TOPIC_CONNECTION_AUDIT = os.getenv(
+    "SIM_CONNECTION_AUDIT_TOPIC",
+    "simulador/bandas/conexiones",
+)
 
 PROGRESS_DELAY_SEC = float(os.getenv("SIM_PROGRESS_DELAY_SEC", "0.75"))
 STAGE_DELAY_SEC = float(os.getenv("SIM_STAGE_DELAY_SEC", "20"))
@@ -108,6 +112,35 @@ def _connect_publisher_client(
 
     if not client.is_connected():
         raise TimeoutError("No se confirmó la conexión MQTT del publicador")
+
+
+def _publish_connection_audit(
+    client: mqtt.Client,
+    *,
+    event: str,
+    client_id: str,
+    band_id: str,
+    order_id: Any,
+    line_id: Any,
+) -> None:
+    payload = json.dumps(
+        {
+            "event": event,
+            "source": "emulador",
+            "occurredAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            "clientId": client_id,
+            "bandaId": band_id,
+            "pedidoId": order_id,
+            "lineaPedidoId": line_id,
+        },
+        ensure_ascii=False,
+    )
+    result = client.publish(TOPIC_CONNECTION_AUDIT, payload, qos=1)
+    result.wait_for_publish()
+    if result.rc == mqtt.MQTT_ERR_SUCCESS:
+        print(f"[TX] {TOPIC_CONNECTION_AUDIT} -> {payload}")
+    else:
+        print(f"[ERROR] Falló auditoría de conexión ({result.rc})")
 
 
 def on_connect(client: mqtt.Client, _userdata: Any, _flags: Dict[str, Any], rc: int):
@@ -292,6 +325,14 @@ def simulate_order(
 
                 try:
                     _connect_publisher_client(band_client, settings)
+                    _publish_connection_audit(
+                        band_client,
+                        event="banda.connected",
+                        client_id=band_client_id,
+                        band_id=band_id,
+                        order_id=order_id,
+                        line_id=line_id,
+                    )
                     for idx in range(band_total):
                         avance = build_avance_event(
                             order_id,
@@ -327,6 +368,15 @@ def simulate_order(
                     print(f"[ERROR] Banda {band_id} no pudo operar su conexión MQTT: {exc}")
                 finally:
                     try:
+                        if band_client.is_connected():
+                            _publish_connection_audit(
+                                band_client,
+                                event="banda.disconnecting",
+                                client_id=band_client_id,
+                                band_id=band_id,
+                                order_id=order_id,
+                                line_id=line_id,
+                            )
                         band_client.loop_stop()
                     finally:
                         band_client.disconnect()
