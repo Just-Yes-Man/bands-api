@@ -70,6 +70,10 @@ panel de historial, consultados desde la base de datos a traves de la API.
 (`https://bandas-api-latest.onrender.com`) como una URL que ya incluya
 `/api/v1`.
 
+Si `SIM_API_BASE_URL` no esta definida en Render, el emulador intenta inferir la
+URL de la API a partir de `RENDER_EXTERNAL_URL`, reemplazando `emulator` por
+`api` en el hostname.
+
 URL por defecto:
 
 ```

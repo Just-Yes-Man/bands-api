@@ -17,7 +17,6 @@ from typing import Any
 
 UI_DIR = Path(__file__).resolve().parent / "ui"
 INDEX_PATH = UI_DIR / "index.html"
-API_BASE_URL = os.getenv("SIM_API_BASE_URL", "http://localhost:1200/api/v1")
 HISTORY_LIMIT = int(os.getenv("SIM_HISTORY_LIMIT", "30"))
 
 
@@ -195,8 +194,33 @@ def fetch_history() -> dict[str, Any]:
 
 
 def build_history_urls(query: str) -> list[str]:
-    base = API_BASE_URL.rstrip("/")
+    base = resolve_api_base_url().rstrip("/")
     candidates = [f"{base}/simulator/orders/history?{query}"]
     if not base.endswith("/api/v1"):
         candidates.insert(0, f"{base}/api/v1/simulator/orders/history?{query}")
     return candidates
+
+
+def resolve_api_base_url() -> str:
+    configured = os.getenv("SIM_API_BASE_URL")
+    if configured:
+        return configured
+
+    render_external_url = os.getenv("RENDER_EXTERNAL_URL", "").strip()
+    if render_external_url:
+        parsed = urllib.parse.urlparse(render_external_url)
+        hostname = parsed.netloc
+        if hostname:
+            api_host = hostname.replace("emulator", "api", 1)
+            return urllib.parse.urlunparse(
+                (
+                    parsed.scheme or "https",
+                    api_host,
+                    "",
+                    "",
+                    "",
+                    "",
+                )
+            )
+
+    return "http://localhost:1200/api/v1"

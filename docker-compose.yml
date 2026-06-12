@@ -9,17 +9,19 @@ services:
     env_file:
       - .env
     environment:
-      PGHOST: ""
-      PGDATABASE: ""
-      PGUSER: ""
-      PGPASSWORD: ""
-      PGSSL: "true"
-      EMQX_ENABLED: "true"
-      EMQX_URL: mqtts://k12aa2fa.ala.us-east-1.emqxsl.com:8883
-      EMQX_WS_URL: wss://k12aa2fa.ala.us-east-1.emqxsl.com:8084/mqtt
-      EMQX_USERNAME: admin
-      EMQX_PASSWORD: admin9988
-      EMQX_ORDERS_PROGRESS_TOPIC: pedidos/avances
+      DATABASE_URL: ${DATABASE_URL:-}
+      PGHOST: ${PGHOST:-}
+      PGPORT: ${PGPORT:-5432}
+      PGDATABASE: ${PGDATABASE:-}
+      PGUSER: ${PGUSER:-}
+      PGPASSWORD: ${PGPASSWORD:-}
+      PGSSL: ${PGSSL:-false}
+      EMQX_ENABLED: ${EMQX_ENABLED:-false}
+      EMQX_URL: ${EMQX_URL:-mqtt://localhost:1883}
+      EMQX_WS_URL: ${EMQX_WS_URL:-ws://localhost:8083/mqtt}
+      EMQX_USERNAME: ${EMQX_USERNAME:-}
+      EMQX_PASSWORD: ${EMQX_PASSWORD:-}
+      EMQX_ORDERS_PROGRESS_TOPIC: ${EMQX_ORDERS_PROGRESS_TOPIC:-pedidos/avances}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     command: sh -c "npm run migrate && npm start"
@@ -32,13 +34,15 @@ services:
     env_file:
       - .env
     environment:
-      MQTT_BROKER: k12aa2fa.ala.us-east-1.emqxsl.com
-      MQTT_PORT: "8883"
-      MQTT_TLS: "true"
-      MQTT_USERNAME: admin
-      MQTT_PASSWORD: admin9988
-      SIM_UI_HOST: 0.0.0.0
-      SIM_UI_PORT: "5055"
+      MQTT_BROKER: ${MQTT_BROKER:-k12aa2fa.ala.us-east-1.emqxsl.com}
+      MQTT_PORT: ${MQTT_PORT:-8883}
+      MQTT_TLS: ${MQTT_TLS:-true}
+      MQTT_USERNAME: ${MQTT_USERNAME:-admin}
+      MQTT_PASSWORD: ${MQTT_PASSWORD:-admin9988}
+      SIM_UI_HOST: ${SIM_UI_HOST:-0.0.0.0}
+      SIM_UI_PORT: ${SIM_UI_PORT:-5055}
       SIM_API_BASE_URL: http://api:1200/api/v1
     ports:
       - "5055:5055"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
