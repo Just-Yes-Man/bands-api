@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import mimetypes
 import os
 import queue
 import threading
@@ -68,19 +69,25 @@ class UiRequestHandler(BaseHTTPRequestHandler):
         return
 
     def do_GET(self) -> None:
-        if self.path in ("/", "/index.html"):
+        request_path = urllib.parse.urlparse(self.path).path
+
+        if request_path in ("/", "/index.html"):
             self._serve_index()
             return
 
-        if self.path.startswith("/snapshot"):
+        if request_path.startswith("/assets/"):
+            self._serve_static(request_path)
+            return
+
+        if request_path.startswith("/snapshot"):
             self._serve_snapshot()
             return
 
-        if self.path.startswith("/history"):
+        if request_path.startswith("/history"):
             self._serve_history()
             return
 
-        if self.path.startswith("/events"):
+        if request_path.startswith("/events"):
             self._serve_events()
             return
 
@@ -95,6 +102,29 @@ class UiRequestHandler(BaseHTTPRequestHandler):
         self.send_response(HTTPStatus.OK)
         self.send_header("Content-Type", "text/html; charset=utf-8")
         self.send_header("Content-Length", str(len(content)))
+        self.end_headers()
+        self.wfile.write(content)
+
+    def _serve_static(self, request_path: str) -> None:
+        safe_relative = request_path.lstrip("/")
+        file_path = (UI_DIR / safe_relative).resolve()
+        ui_root = UI_DIR.resolve()
+
+        if not str(file_path).startswith(str(ui_root)):
+            self.send_error(HTTPStatus.FORBIDDEN, "Forbidden")
+            return
+
+        if not file_path.exists() or not file_path.is_file():
+            self.send_error(HTTPStatus.NOT_FOUND, "Asset not found")
+            return
+
+        content = file_path.read_bytes()
+        content_type = mimetypes.guess_type(str(file_path))[0] or "application/octet-stream"
+
+        self.send_response(HTTPStatus.OK)
+        self.send_header("Content-Type", content_type)
+        self.send_header("Content-Length", str(len(content)))
+        self.send_header("Cache-Control", "public, max-age=3600")
         self.end_headers()
         self.wfile.write(content)
 

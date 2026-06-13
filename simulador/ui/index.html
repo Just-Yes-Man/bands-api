@@ -390,15 +390,21 @@
       position: absolute;
       top: 50%;
       transform: translate(-50%, -50%);
-      min-width: 112px;
-      height: 50px;
-      padding: 7px 10px 6px;
+      min-width: 220px;
+      height: 80px;
+      padding: 10px 12px;
       border-radius: 15px;
       background: linear-gradient(180deg, #fbfbff, #cfd8e8);
       border: 1px solid rgba(255,255,255,0.28);
       box-shadow: 0 12px 24px rgba(0, 0, 0, 0.3);
       display: grid;
-      gap: 3px;
+      grid-template-columns: 56px minmax(0, 1fr);
+      grid-template-areas:
+        "thumb head"
+        "thumb body";
+      column-gap: 10px;
+      row-gap: 4px;
+      align-items: center;
       color: #19263b;
       white-space: nowrap;
       overflow: hidden;
@@ -418,17 +424,26 @@
     }
 
     .lane-pallet__head {
+      grid-area: head;
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 8px;
+      gap: 6px;
       font-size: 10px;
       font-weight: 800;
       letter-spacing: 0.12em;
       text-transform: uppercase;
+      min-width: 0;
+    }
+
+    .lane-pallet__name {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
 
     .lane-pallet__body {
+      grid-area: body;
       display: flex;
       align-items: center;
       justify-content: space-between;
@@ -437,6 +452,13 @@
       font-weight: 700;
       text-transform: uppercase;
       letter-spacing: 0.08em;
+      min-width: 0;
+    }
+
+    .lane-pallet__order {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
 
     .lane-pallet__badge {
@@ -456,6 +478,7 @@
       display: flex;
       gap: 4px;
       flex-wrap: wrap;
+      justify-content: flex-end;
     }
 
     .lane-pallet__chip {
@@ -470,6 +493,66 @@
       font-size: 8px;
       font-weight: 800;
       letter-spacing: 0.08em;
+    }
+
+    .token-object-thumb {
+      grid-area: thumb;
+      width: 56px;
+      height: 56px;
+      border-radius: 12px;
+      background: rgba(25, 38, 59, 0.1);
+      border: 1px solid rgba(25, 38, 59, 0.14);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex: 0 0 auto;
+      overflow: hidden;
+    }
+
+    .token-object-img {
+      width: 48px;
+      height: 48px;
+      object-fit: contain;
+      object-position: center;
+      image-rendering: auto;
+      display: block;
+    }
+
+    .lane-pallet.object-1 .token-object-thumb,
+    .pallet.object-1 .token-object-thumb {
+      background: linear-gradient(180deg, #fcfdff, #edf1f7);
+      border-color: rgba(140, 153, 171, 0.45);
+    }
+
+    .lane-pallet.object-2 .token-object-thumb,
+    .pallet.object-2 .token-object-thumb {
+      background: linear-gradient(180deg, #ffffff, #f1f3f8);
+      border-color: rgba(170, 180, 198, 0.45);
+      box-shadow: inset 0 -3px 8px rgba(137, 147, 167, 0.25);
+    }
+
+    .lane-pallet.object-3 .token-object-thumb,
+    .lane-pallet.object-4 .token-object-thumb,
+    .pallet.object-3 .token-object-thumb,
+    .pallet.object-4 .token-object-thumb {
+      background: linear-gradient(180deg, rgba(205, 241, 255, 0.7), rgba(158, 217, 243, 0.45));
+      border-color: rgba(112, 176, 209, 0.5);
+      box-shadow:
+        inset 0 2px 8px rgba(255, 255, 255, 0.5),
+        inset 0 -3px 10px rgba(105, 170, 205, 0.35);
+    }
+
+    .lane-pallet.object-5 .token-object-thumb,
+    .pallet.object-5 .token-object-thumb {
+      background: linear-gradient(180deg, #fff9f0, #f6ecd8);
+      border-color: rgba(176, 153, 120, 0.5);
+      border-radius: 16px;
+    }
+
+    .lane-pallet.object-generic .token-object-thumb,
+    .pallet.object-generic .token-object-thumb {
+      background: linear-gradient(180deg, #f0e1cb, #dcc19b);
+      border-color: rgba(148, 111, 69, 0.42);
     }
 
     .lane-meta {
@@ -858,19 +941,18 @@
       position: absolute;
       top: 50%;
       transform: translate(-50%, -50%);
-      width: 72px;
-      height: 42px;
-      border-radius: 16px;
+      min-width: 112px;
+      height: 50px;
+      padding: 7px 10px 6px;
+      border-radius: 15px;
       background: linear-gradient(180deg, #fbfbff, #cfd8e8);
       border: 1px solid rgba(255,255,255,0.28);
       box-shadow: 0 12px 24px rgba(0, 0, 0, 0.3);
       display: grid;
-      place-items: center;
+      gap: 3px;
       color: #19263b;
-      font-size: 11px;
-      font-weight: 800;
-      letter-spacing: 0.1em;
-      text-transform: uppercase;
+      white-space: nowrap;
+      overflow: hidden;
     }
 
     .pallet::before {
@@ -1140,6 +1222,14 @@
     let historyOrders = [];
     let historyError = '';
     const BAND_COUNT = 5;
+    const FALLBACK_IMAGE = '/assets/objetos/paquete.png';
+    const OBJECT_CATALOG = {
+      1: { name: 'taza', image: '/assets/objetos/taza.png', qr: 'QR-TAZA-001', peso: '220g', color: 'blanco', altura: '95mm', themeClass: 'object-1' },
+      2: { name: 'plato', image: '/assets/objetos/plato.png', qr: 'QR-PLATO-001', peso: '450g', color: 'blanco', altura: '25mm', themeClass: 'object-2' },
+      3: { name: 'vaso', image: '/assets/objetos/vaso.png', qr: 'QR-VASO-001', peso: '180g', color: 'transparente', altura: '120mm', themeClass: 'object-3' },
+      4: { name: 'copa', image: '/assets/objetos/copa.png', qr: 'QR-COPA-001', peso: '200g', color: 'transparente', altura: '140mm', themeClass: 'object-4' },
+      5: { name: 'tazon', image: '/assets/objetos/tazon.png', qr: 'QR-TAZON-001', peso: '320g', color: 'blanco', altura: '70mm', themeClass: 'object-5' }
+    };
     const ORDER_CLEAR_DELAY_MS = 4000;
     const orderCleanupTimers = new Map();
 
@@ -1273,6 +1363,36 @@
       return labels[reason] || reason || 'Error de medicion';
     };
 
+    const getObjectSpec = (modeloProductoId) => {
+      const parsed = Number(modeloProductoId);
+      const known = Number.isFinite(parsed) ? OBJECT_CATALOG[parsed] : null;
+      if (known) {
+        return { ...known, id: parsed };
+      }
+      return {
+        id: modeloProductoId,
+        name: 'paquete',
+        image: FALLBACK_IMAGE,
+        qr: 'QR-DESCONOCIDO',
+        peso: 'n/a',
+        color: 'n/a',
+        altura: 'n/a',
+        themeClass: 'object-generic'
+      };
+    };
+
+    const buildObjectThumb = (spec, alt) => `
+      <span class="token-object-thumb">
+        <img
+          class="token-object-img"
+          src="${spec.image}"
+          alt="${alt}"
+          loading="lazy"
+          onerror="this.onerror=null;this.src='${FALLBACK_IMAGE}';"
+        />
+      </span>
+    `;
+
     const buildComparisonHtml = (line) => {
       const error = line.lastError;
       if (!error) return '';
@@ -1318,6 +1438,7 @@
       const total = Math.max(1, Number(line.cantidad || 0));
       const current = Math.max(0, Math.min(total, Number(line.progress || 0)));
       const activeCount = Math.max(1, Math.min(4, Math.round((current / total) * 4) || (line.classified ? 4 : 1)));
+      const objectSpec = getObjectSpec(line.modeloProductoId);
       const start = 12;
       const end = 88;
       const range = end - start;
@@ -1327,7 +1448,7 @@
         return Math.max(start, Math.min(end, start + (fraction * range) + jitter));
       });
       return positions.map((position, index) => {
-        const classNames = ['pallet'];
+        const classNames = ['pallet', objectSpec.themeClass || 'object-generic'];
         if ((line.errors || []).length && index === activeCount - 1) {
           classNames.push('bad');
         } else if (line.classified) {
@@ -1343,18 +1464,20 @@
               ? 'INS'
               : 'FLU';
         const chips = [
-          `<span class="lane-pallet__chip">QR</span>`,
+          `<span class="lane-pallet__chip">BANDA</span>`,
           `<span class="lane-pallet__chip">P${Math.max(1, Math.min(total, current || 1))}</span>`,
           `<span class="lane-pallet__chip">${current}/${total}</span>`
         ].join('');
+        const tooltip = `${objectSpec.name} | ${objectSpec.qr} | ${objectSpec.peso} | ${objectSpec.color} | ${objectSpec.altura}`;
         return `
-          <div class="${classNames.join(' ')}" style="left:${position}%">
+          <div class="${classNames.join(' ')}" style="left:${position}%" title="${tooltip}">
+            ${buildObjectThumb(objectSpec, objectSpec.name)}
             <div class="lane-pallet__head">
-              <span>Modelo ${line.modeloProductoId}</span>
+              <span class="lane-pallet__name">${objectSpec.name}</span>
               <span class="lane-pallet__badge">${statusLabel}</span>
             </div>
             <div class="lane-pallet__body">
-              <span>Pedido ${line.id}</span>
+              <span class="lane-pallet__order">Pedido ${line.id}</span>
               <div class="lane-pallet__chips">${chips}</div>
             </div>
           </div>
@@ -1421,7 +1544,8 @@
           const total = Math.max(1, Number(target || 0));
           const progress = Math.max(0, Math.min(total, Number(current || 0)));
           const percent = Math.min(100, Math.round((progress / total) * 100));
-          const classNames = ['lane-pallet'];
+          const objectSpec = getObjectSpec(line.modeloProductoId);
+          const classNames = ['lane-pallet', objectSpec.themeClass || 'object-generic'];
           if ((line.errors || []).length && !line.classified) {
             classNames.push('bad');
           } else if (line.classified) {
@@ -1442,14 +1566,16 @@
               `<span class="lane-pallet__chip">P${Math.max(1, Math.min(total, progress || 1))}</span>`,
               `<span class="lane-pallet__chip">${progress}/${total}</span>`
             ].join('');
+            const tooltip = `${objectSpec.name} | ${objectSpec.qr} | ${objectSpec.peso} | ${objectSpec.color} | ${objectSpec.altura}`;
             return `
-              <div class="${classNames.join(' ')}" style="left:${Math.min(88, left)}%">
+              <div class="${classNames.join(' ')}" style="left:${Math.min(88, left)}%" title="${tooltip}">
+                ${buildObjectThumb(objectSpec, objectSpec.name)}
                 <div class="lane-pallet__head">
-                  <span>Modelo ${line.modeloProductoId}</span>
+                  <span class="lane-pallet__name">${objectSpec.name}</span>
                   <span class="lane-pallet__badge">${statusLabel}</span>
                 </div>
                 <div class="lane-pallet__body">
-                  <span>Pedido ${orderId}</span>
+                  <span class="lane-pallet__order">Pedido ${orderId}</span>
                   <div class="lane-pallet__chips">${chips}</div>
                 </div>
               </div>
